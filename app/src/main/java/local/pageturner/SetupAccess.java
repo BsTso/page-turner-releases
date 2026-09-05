@@ -10,6 +10,8 @@ import android.view.accessibility.AccessibilityManager;
 import android.widget.Toast;
 
 final class SetupAccess {
+    // On Android 8–12 the system's service list keeps the phone language even after an in-app switch.
+    static String label(Context context) { return context.getApplicationContext().getString(R.string.app_name); }
     static int state(Context context) {
         AccessibilityManager manager=(AccessibilityManager)context.getSystemService(Context.ACCESSIBILITY_SERVICE);
         ComponentName ours=new ComponentName(context,TurnService.class);
@@ -28,12 +30,12 @@ final class SetupAccess {
             .putExtra(":settings:fragment_args_key",component)
             .putExtra(":settings:show_fragment_args",args);
         if(!launch(activity,intent) && !launch(activity,new Intent(Settings.ACTION_SETTINGS)))
-            Toast.makeText(activity,"请在手机设置中搜索「无障碍」，找到轻翻页",Toast.LENGTH_LONG).show();
+            Toast.makeText(activity,activity.getString(R.string.access_search,label(activity)),Toast.LENGTH_LONG).show();
     }
     static void appInfo(Activity activity) {
         hide();
         if(!launch(activity,new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+activity.getPackageName()))))
-            Toast.makeText(activity,"长按轻翻页图标，打开应用信息",Toast.LENGTH_LONG).show();
+            Toast.makeText(activity,activity.getString(R.string.app_info_fallback,label(activity)),Toast.LENGTH_LONG).show();
     }
     private static boolean launch(Activity activity,Intent intent) {
         try { activity.startActivity(intent); return true; }

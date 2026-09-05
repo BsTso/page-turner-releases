@@ -37,22 +37,23 @@ public class TurnService extends AccessibilityService {
     private int missedTurns,scrollBottom=ReadingRules.UNKNOWN;
     private String scrollKey,ownScrollKey;
     private long scrollAt,nextProbe;
-    private String reason = "打开阅读页面，再点开始";
+    private String reason = "";
+    private String panelLanguage;
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
-        @Override public void onReceive(Context c, Intent i) { pause("屏幕已关闭，请手动重新开始"); }
+        @Override public void onReceive(Context c, Intent i) { pause(s(R.string.screen_off)); }
     };
     private final Runnable ticker = new Runnable() {
         @Override public void run() {
             if (!running) return;
             long now = SystemClock.uptimeMillis();
             if (!guard()) return;
-            if (now >= stopAt) { pause("已到设定停止时间"); return; }
-            if (busy && now - busyAt > 3000) { pause("点击未完成，已暂停"); return; }
+            if (now >= stopAt) { pause(s(R.string.timer_ended)); return; }
+            if (busy && now - busyAt > 3000) { pause(s(R.string.action_timeout)); return; }
             if(watching && now>=nextProbe) checkTurn(now);
             if (!running) return;
             if (!busy && !watching && now >= due) performTurn();
             if (!running) return;
-            status.setText(watching?"等页面更新":(mode==1 || mode==2 && phase<steps?"滑动":smart?"识别":"翻页")+" · "+Math.max(0,(due-now+999)/1000)+" 秒");
+            status.setText(watching?s(R.string.waiting_page):s(R.string.action_countdown,s(mode==1 || mode==2 && phase<steps?R.string.action_scroll:smart?R.string.action_find:R.string.action_turn),Math.max(0,(due-now+999)/1000)));
             if (bubble!=null) bubble.invalidate();
             handler.postDelayed(this, 500);
         }
@@ -75,12 +76,13 @@ public class TurnService extends AccessibilityService {
     }
     public void showPanel() {
         if(manager==null) return;
-        pause("打开阅读页面，再点开始");
+        panelLanguage=Languages.tag(this);
+        pause(s(R.string.open_page_start));
         if (panel != null) { expandPanel(); return; }
         panel = new LinearLayout(this) {
             @Override public boolean dispatchTouchEvent(MotionEvent event) {
                 if(event.getActionMasked()==MotionEvent.ACTION_OUTSIDE) {
-                    if(running && !Rules.ownInjectedTouch(event.getDeviceId(),event.getToolType(0),event.getEventTime(),ownStart,ownEnd)) pause("手动操作 · 已暂停");
+                    if(running && !Rules.ownInjectedTouch(event.getDeviceId(),event.getToolType(0),event.getEventTime(),ownStart,ownEnd)) pause(s(R.string.manual_paused));
                     return true;
                 }
                 return super.dispatchTouchEvent(event);
@@ -88,32 +90,32 @@ public class TurnService extends AccessibilityService {
         }; panel.setOrientation(LinearLayout.VERTICAL);
         panelHeader=new LinearLayout(this); panelHeader.setGravity(Gravity.CENTER_VERTICAL); panel.addView(panelHeader);
         status=Ui.text(this,"",12,0xffc1c2c9); status.setMaxLines(2); status.setPadding(dp(8),dp(6),0,dp(6)); panelHeader.addView(status,new LinearLayout.LayoutParams(0,dp(40),1));
-        TextView fold=Ui.action(this,"−",Color.WHITE,Color.TRANSPARENT); fold.setContentDescription("收起控制面板"); panelHeader.addView(fold,new LinearLayout.LayoutParams(dp(44),dp(40))); fold.setOnClickListener(v -> { if(running) pause("手动操作 · 已暂停"); collapsePanel(); });
+        TextView fold=Ui.action(this,"−",Color.WHITE,Color.TRANSPARENT); fold.setContentDescription(s(R.string.collapse_panel)); panelHeader.addView(fold,new LinearLayout.LayoutParams(dp(44),dp(40))); fold.setOnClickListener(v -> { if(running) pause(s(R.string.manual_paused)); collapsePanel(); });
         panelRow=new LinearLayout(this); panel.addView(panelRow);
-        toggle=smallButton(panelRow,"开始",v -> { if(running) pause("已暂停"); else startSession(); });
-        smallButton(panelRow,"选点",v -> pickPoint());
-        smallButton(panelRow,"设置",v -> { pause("已暂停"); startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); });
-        smallButton(panelRow,"×",v -> hidePanel()).setContentDescription("停止并隐藏");
+        toggle=smallButton(panelRow,s(R.string.start),v -> { if(running) pause(s(R.string.paused)); else startSession(); });
+        smallButton(panelRow,s(R.string.pick),v -> pickPoint());
+        smallButton(panelRow,s(R.string.settings),v -> { pause(s(R.string.paused)); startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); });
+        smallButton(panelRow,"×",v -> hidePanel()).setContentDescription(s(R.string.stop_hide));
         bubble=new Bubble(); panel.addView(bubble,new LinearLayout.LayoutParams(dp(44),dp(44))); bubble.setVisibility(View.GONE);
-        bubble.setContentDescription("轻点开始或暂停，长按展开，拖动挪位置");
+        bubble.setContentDescription(s(R.string.dot_description));
         panelParams=overlay(dp(244),-2,false); panelParams.flags |= WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL; panelParams.x=dp(8); panelParams.y=dp(100);
         attachDrag(status,false); attachDrag(bubble,true);
         panel.setPadding(dp(8),dp(4),dp(8),dp(6)); panel.setBackground(Ui.shape(this,0xf51f2025,22));
         try { manager.addView(panel,panelParams); }
         catch(WindowManager.BadTokenException | WindowManager.InvalidDisplayException | SecurityException e) {
             panel=null; status=null; toggle=null; bubble=null; panelHeader=null; panelRow=null;
-            Toast.makeText(this,"控制点未能显示，请回应用检查使用准备",Toast.LENGTH_LONG).show(); return;
+            Toast.makeText(this,s(R.string.panel_failed),Toast.LENGTH_LONG).show(); return;
         }
         collapsed=false; refreshPaused();
     }
-    public void hidePanel() { pause("已停止"); phase=0; removePicker(); removeMarker(); if (panel != null) { manager.removeView(panel); panel=null; status=null; toggle=null; bubble=null; } }
+    public void hidePanel() { pause(s(R.string.stopped)); phase=0; removePicker(); removeMarker(); if (panel != null) { manager.removeView(panel); panel=null; status=null; toggle=null; bubble=null; } }
     public void pause(String message) {
         running=false; busy=false; generation++; handler.removeCallbacks(ticker); reason=message;
         watching=false; progressWatch.clear(); missedTurns=0; clearScroll();
         if (panel != null) { panelParams.flags &= ~WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON; manager.updateViewLayout(panel,panelParams); }
         refreshPaused();
     }
-    private void refreshPaused() { if(status!=null) status.setText(reason); if(toggle!=null) toggle.setText("开始"); updateAppearance(); }
+    private void refreshPaused() { if(status!=null) status.setText(reason); if(toggle!=null) toggle.setText(s(R.string.start)); updateAppearance(); }
     public void updateAppearance() { if(bubble!=null) { bubble.setAlpha(running?Math.max(.1f,Math.min(1,getSharedPreferences("settings",0).getInt("opacity",35)/100f)):.85f); bubble.invalidate(); } }
     private void collapsePanel() {
         if(panel==null || picker!=null) return;
@@ -134,7 +136,7 @@ public class TurnService extends AccessibilityService {
             final Runnable hold=() -> { held=true; if(isBubble) expandPanel(); };
             public boolean onTouch(View v,MotionEvent e) {
                 if(panel==null) return true;
-                if(e.getAction()==MotionEvent.ACTION_DOWN) { wasRunning=running; if(running) pause("手动操作 · 已暂停"); x=e.getRawX(); y=e.getRawY(); px=panelParams.x; py=panelParams.y; moved=false; held=false; if(isBubble) handler.postDelayed(hold,650); return true; }
+                if(e.getAction()==MotionEvent.ACTION_DOWN) { wasRunning=running; if(running) pause(s(R.string.manual_paused)); x=e.getRawX(); y=e.getRawY(); px=panelParams.x; py=panelParams.y; moved=false; held=false; if(isBubble) handler.postDelayed(hold,650); return true; }
                 if(e.getAction()==MotionEvent.ACTION_MOVE) { if(Math.hypot(e.getRawX()-x,e.getRawY()-y)>dp(7)) { moved=true; handler.removeCallbacks(hold); } if(moved) { Point s=size(); panelParams.x=Math.max(0,Math.min(s.x-panel.getWidth(),px+(int)(e.getRawX()-x))); panelParams.y=Math.max(dp(28),Math.min(s.y-panel.getHeight()-dp(28),py+(int)(e.getRawY()-y))); manager.updateViewLayout(panel,panelParams); } return true; }
                 if(e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL) { handler.removeCallbacks(hold); if(isBubble && ReadingRules.bubbleRelease(wasRunning,moved,held,e.getAction()==MotionEvent.ACTION_CANCEL)==ReadingRules.START) startSession(true); return true; }
                 return true;
@@ -160,11 +162,11 @@ public class TurnService extends AccessibilityService {
         if(panel==null) return;
         removePicker(); removeMarker();
         AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null || root.getPackageName() == null) { if(root!=null) root.recycle(); pause("读不到当前页面，请打开阅读页面"); expandPanel(); return; }
+        if (root == null || root.getPackageName() == null) { if(root!=null) root.recycle(); pause(s(R.string.page_unreadable)); expandPanel(); return; }
         String pkg=root.getPackageName().toString();
-        if(quick && target!=null && !target.equals(pkg)) { root.recycle(); pause("换了应用，请确认位置后点开始"); expandPanel(); return; }
+        if(quick && target!=null && !target.equals(pkg)) { root.recycle(); pause(s(R.string.app_changed_confirm)); expandPanel(); return; }
         if (pkg.equals(homePackage) || pkg.equals("com.android.systemui") || pkg.equals("com.android.settings") || pkg.equals("android")
-            || (pkg.equals(getPackageName()) && !PracticeActivity.visible)) { root.recycle(); pause("请先打开阅读页面"); expandPanel(); return; }
+            || (pkg.equals(getPackageName()) && !PracticeActivity.visible)) { root.recycle(); pause(s(R.string.open_page_first)); expandPanel(); return; }
         SharedPreferences p=getSharedPreferences("settings",0);
         Point s=size(); int nextMode=p.getInt("mode",p.getBoolean("smart",false)?3:0);
         int nextSteps=Math.max(1,Math.min(6,p.getInt("steps",2)));
@@ -182,21 +184,21 @@ public class TurnService extends AccessibilityService {
         stopAt=SystemClock.uptimeMillis()+p.getInt("minutes",30)*60000L;
         if (!guard()) return;
         panelParams.flags |= WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON; manager.updateViewLayout(panel,panelParams);
-        toggle.setText("暂停"); updateAppearance(); handler.removeCallbacks(ticker); handler.post(ticker);
+        toggle.setText(s(R.string.pause)); updateAppearance(); handler.removeCallbacks(ticker); handler.post(ticker);
         final int token=generation; handler.postDelayed(() -> { if(running && token==generation) collapsePanel(); },700);
     }
     private boolean guard() {
         if (!running) return false;
         PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
         KeyguardManager key=(KeyguardManager)getSystemService(KEYGUARD_SERVICE);
-        if (!power.isInteractive() || key.isKeyguardLocked()) { pause("锁屏后已暂停"); return false; }
+        if (!power.isInteractive() || key.isKeyguardLocked()) { pause(s(R.string.locked_paused)); return false; }
         Point s=size();
         AccessibilityNodeInfo root=getRootInActiveWindow();
         String pkg=root == null || root.getPackageName() == null ? null : root.getPackageName().toString();
         boolean valid=root != null && Rules.sameTarget(target,pkg,targetWindow,root.getWindowId(),screenWidth,screenHeight,s.x,s.y)
             && rotation == manager.getDefaultDisplay().getRotation();
         if (root != null) root.recycle();
-        if (!valid) { pause("应用、窗口或屏幕尺寸变化，已暂停"); return false; }
+        if (!valid) { pause(s(R.string.window_changed)); return false; }
         List<AccessibilityWindowInfo> windows=getWindows();
         boolean obstructed=false;
         for (AccessibilityWindowInfo w:windows) {
@@ -204,7 +206,7 @@ public class TurnService extends AccessibilityService {
                 ((w.isActive() || w.isFocused()) && w.getType() != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY && w.getId() != targetWindow)) obstructed=true;
             w.recycle();
         }
-        if (obstructed) { pause("出现键盘或其他窗口，已暂停"); return false; }
+        if (obstructed) { pause(s(R.string.window_obstructed)); return false; }
         return true;
     }
     private void performTurn() {
@@ -213,12 +215,12 @@ public class TurnService extends AccessibilityService {
         if (smart) { clickNextNode(before); return; }
         int bottom=before.bottom;
         if(before.scrollKey!=null && before.scrollKey.equals(scrollKey) && SystemClock.uptimeMillis()-scrollAt<interval+3000) bottom=scrollBottom;
-        if(mode==1 && bottom==ReadingRules.BOTTOM) { pause("已经滑到底了"); expandPanel(); return; }
+        if(mode==1 && bottom==ReadingRules.BOTTOM) { pause(s(R.string.reached_bottom)); expandPanel(); return; }
         boolean swipe=ReadingRules.swipeNext(mode,autoBottom,bottom,phase,steps);
-        if(mode==2 && autoBottom && swipe && phase>=60) { pause("还没找到底部，可改用固定次数"); expandPanel(); return; }
+        if(mode==2 && autoBottom && swipe && phase>=60) { pause(s(R.string.bottom_not_found)); expandPanel(); return; }
         float x=screenWidth*(swipe?.5f:pointX), y=screenHeight*(swipe?.8f:pointY);
         float endY=swipe?screenHeight*Rules.swipeEnd(swipeDistance):y;
-        if (pathHitsPanel(x,y,endY)) { pause("移动控制点后再开始"); return; }
+        if (pathHitsPanel(x,y,endY)) { pause(s(R.string.move_dot)); return; }
         Path path=new Path(); path.moveTo(x,y);
         if(swipe) path.lineTo(x,endY);
         long duration=swipe?1000:70;
@@ -229,9 +231,9 @@ public class TurnService extends AccessibilityService {
         busy=true; busyAt=SystemClock.uptimeMillis(); final int token=generation;
         boolean accepted=dispatchGesture(gesture,new GestureResultCallback() {
             @Override public void onCompleted(GestureDescription g) { if (running && token==generation) completed(swipe,before); }
-            @Override public void onCancelled(GestureDescription g) { if (token==generation) pause("点击被打断，已暂停"); }
+            @Override public void onCancelled(GestureDescription g) { if (token==generation) pause(s(R.string.gesture_interrupted)); }
         },handler);
-        if (!accepted) pause("系统未接受点击，请检查权限");
+        if (!accepted) pause(s(R.string.gesture_rejected));
     }
     private void completed(boolean swipe,PageProbe.Snapshot before) {
         busy=false; count++; phase=swipe?phase+1:0; long now=SystemClock.uptimeMillis(); due=now+interval;
@@ -248,13 +250,13 @@ public class TurnService extends AccessibilityService {
         watching=false; progressWatch.clear();
         if(result==ProgressWatch.CHANGED) { missedTurns=0; due=Math.max(due,now+interval); }
         else if(ReadingRules.stopAfterMisses(++missedTurns)) {
-            pause(result==ProgressWatch.UNREADABLE?"暂时看不出是否翻页，已暂停":"连续两次没看到页面变化，已暂停"); expandPanel();
+            pause(result==ProgressWatch.UNREADABLE?s(R.string.progress_unreadable):s(R.string.progress_unchanged)); expandPanel();
         }
     }
     private void clearScroll() { scrollKey=null; ownScrollKey=null; scrollBottom=ReadingRules.UNKNOWN; scrollAt=0; }
     private void clickNextNode(PageProbe.Snapshot before) {
         AccessibilityNodeInfo root=getRootInActiveWindow();
-        if (root == null) { pause("暂时读不到页面，已暂停"); return; }
+        if (root == null) { pause(s(R.string.page_lost)); return; }
         ArrayDeque<AccessibilityNodeInfo> queue=new ArrayDeque<>(); queue.add(root);
         LinkedHashMap<String,AccessibilityNodeInfo> matches=new LinkedHashMap<>(); int visited=0;
         while (!queue.isEmpty() && visited++ < 2000) {
@@ -281,30 +283,30 @@ public class TurnService extends AccessibilityService {
         boolean truncated=!queue.isEmpty(); while(!queue.isEmpty()) queue.remove().recycle();
         if (truncated || matches.size()!=1) {
             for(AccessibilityNodeInfo n:matches.values()) n.recycle();
-            pause(truncated ? "页面过于复杂，请使用固定位置" : matches.isEmpty() ? "找不到明确的下一页，可改用选点" : "发现多个下一页，请改用固定位置"); return;
+            pause(truncated ? s(R.string.page_complex) : matches.isEmpty() ? s(R.string.next_missing) : s(R.string.next_ambiguous)); return;
         }
         AccessibilityNodeInfo n=matches.values().iterator().next();
         if (!guard()) { n.recycle(); return; }
         boolean ok=n.refresh() && n.isEnabled() && n.isVisibleToUser() && n.performAction(AccessibilityNodeInfo.ACTION_CLICK); n.recycle();
-        if (ok) completed(false,before); else pause("按钮无法点击，已暂停");
+        if (ok) completed(false,before); else pause(s(R.string.button_failed));
     }
     private void pickPoint() {
-        pause("轻点目标位置；右上角可取消"); removePicker(); removeMarker();
+        pause(s(R.string.pick_tip)); removePicker(); removeMarker();
         FrameLayout surface=new FrameLayout(this); surface.setBackgroundColor(0x22000000);
-        TextView tip=Ui.action(this,"轻点翻页位置",Color.WHITE,0xe0202126); tip.setClickable(false);
+        TextView tip=Ui.action(this,s(R.string.pick_title),Color.WHITE,0xe0202126); tip.setClickable(false);
         FrameLayout.LayoutParams tp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL); tp.topMargin=dp(160); surface.addView(tip,tp);
-        TextView cancel=Ui.action(this,"取消",Color.WHITE,0xe0202126); FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-2,dp(48),Gravity.TOP|Gravity.RIGHT); cp.topMargin=dp(32); cp.rightMargin=dp(12); surface.addView(cancel,cp);
-        cancel.setOnClickListener(v -> { removePicker(); pause("已取消选点"); });
+        TextView cancel=Ui.action(this,s(R.string.cancel),Color.WHITE,0xe0202126); FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(-2,dp(48),Gravity.TOP|Gravity.RIGHT); cp.topMargin=dp(32); cp.rightMargin=dp(12); surface.addView(cancel,cp);
+        cancel.setOnClickListener(v -> { removePicker(); pause(s(R.string.pick_cancelled)); });
         surface.setOnTouchListener((v,event) -> {
             if (event.getAction()==MotionEvent.ACTION_UP) {
                 Point s=size(); float x=event.getRawX(), y=event.getRawY();
-                if (x<dp(24) || x>s.x-dp(24) || y<dp(28) || y>s.y-dp(28)) { Toast.makeText(this,"请选择离屏幕边缘稍远的位置",Toast.LENGTH_SHORT).show(); return true; }
+                if (x<dp(24) || x>s.x-dp(24) || y<dp(28) || y>s.y-dp(28)) { Toast.makeText(this,s(R.string.pick_edge),Toast.LENGTH_SHORT).show(); return true; }
                 pointX=x/s.x; pointY=y/s.y;
                 SharedPreferences settings=getSharedPreferences("settings",0);
                 int selected=settings.getInt("mode",settings.getBoolean("smart",false)?3:0);
                 String profile=ScreenProfiles.key(manager); ScreenProfiles.put(settings,profile,"x",pointX); ScreenProfiles.put(settings,profile,"y",pointY);
                 settings.edit().putBoolean("smart",false).putInt("mode",selected==2?2:0).apply(); phase=0;
-                removePicker(); showMarker(x,y); pause("定点已保存，确认位置后点开始"); return true;
+                removePicker(); showMarker(x,y); pause(s(R.string.pick_saved)); return true;
             } return true;
         });
         picker=surface; manager.addView(picker,overlay(-1,-1,false));
@@ -328,6 +330,7 @@ public class TurnService extends AccessibilityService {
         return p;
     }
     private TextView smallButton(LinearLayout row,String text,View.OnClickListener action) { TextView b=Ui.action(this,text,Color.WHITE,Color.TRANSPARENT); b.setTextSize(13); b.setPadding(0,0,0,0); row.addView(b,new LinearLayout.LayoutParams(0,dp(44),1)); b.setOnClickListener(action); return b; }
+    private String s(int id,Object... values) { Context context=Languages.wrap(this); return values.length==0?context.getString(id):context.getString(id,values); }
     private int dp(int n) { return Math.round(n*getResources().getDisplayMetrics().density); }
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
         if(!running || !guard()) return;
@@ -343,9 +346,10 @@ public class TurnService extends AccessibilityService {
             }
         }
     }
-    @Override public void onInterrupt() { pause("服务被系统中断"); }
+    @Override public void onInterrupt() { pause(s(R.string.service_interrupted)); }
     @Override public void onConfigurationChanged(Configuration c) {
-        super.onConfigurationChanged(c); pause("屏幕布局变化，请确认位置后重新开始"); removePicker(); removeMarker();
+        if(panel!=null && !Languages.tag(this).equals(panelLanguage)) { super.onConfigurationChanged(c); hidePanel(); return; }
+        super.onConfigurationChanged(c); pause(s(R.string.layout_changed)); removePicker(); removeMarker();
         if(panel!=null) { panelParams.x=dp(10); panelParams.y=dp(48); manager.updateViewLayout(panel,panelParams); }
     }
     @Override public void onDestroy() {

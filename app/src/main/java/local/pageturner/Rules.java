@@ -19,14 +19,15 @@ public final class Rules {
     public static long intervalMillis(String text) {
         double seconds = Double.parseDouble(text.trim());
         if (Double.isNaN(seconds) || Double.isInfinite(seconds) || seconds < 1 || seconds > 3600)
-            throw new IllegalArgumentException("间隔需要在 1–3600 秒之间");
+            throw new IllegalArgumentException("Interval must be between 1 and 3600 seconds");
         return Math.round(seconds * 1000);
     }
     public static boolean nextLabel(CharSequence text) {
         if (text == null) return false;
         String s = text.toString().trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
         return s.equals("下一页") || s.equals("下一張") || s.equals("下一张") || s.equals("下页")
-            || s.equals("下一頁") || s.equals("next") || s.equals("next page") || s.equals("next image");
+            || s.equals("下一頁") || s.equals("next") || s.equals("next page") || s.equals("next image")
+            || s.equals("次のページ") || s.equals("次ページ") || s.equals("次の画像") || s.equals("次の写真");
     }
     public static boolean sameTarget(String expected, String actual, int window, int current,
                                      int width, int height, int nowWidth, int nowHeight) {
