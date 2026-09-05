@@ -16,15 +16,10 @@
     <string name="swipe_large">大きめ · 65%</string>
     <string name="turn_when">めくるタイミング</string>
     <string name="at_bottom">一番下に着いたら</string>
-    <string name="hint_tap">ページを開き、丸ボタンを長押しして位置を選択</string>
-    <string name="hint_scroll">一定の間隔で下へ読み進めます</string>
-    <string name="hint_combined">スクロール後、選んだ位置をタップ</string>
-    <string name="hint_smart">試験機能 · 次ページが見つからないと一時停止</string>
     <string name="finish_connecting">接続を確認</string>
     <string name="finish_setup">利用を準備</string>
     <string name="show_dot">丸ボタンを表示</string>
-    <string name="dot_start_tip">ページを開いて丸ボタンをタップで開始、長押しで位置を選択</string>
-    <string name="footer">数字をタップして間隔を変更 · 画面に触れると一時停止</string>
+    <string name="footer">数字をタップして間隔変更 · 触れたら停止</string>
     <string name="settings_updated">設定を変更しました</string>
     <string name="interval_title">間隔を秒で設定</string>
     <string name="cancel">キャンセル</string>
@@ -181,9 +176,5 @@
     <plurals name="swipe_count">
         <item quantity="one">%1$d回</item>
         <item quantity="other">%1$d回</item>
-    </plurals>
-    <plurals name="fallback_hint">
-        <item quantity="one">下端を判定できない場合は%1$d回スクロールしてめくります</item>
-        <item quantity="other">下端を判定できない場合は%1$d回スクロールしてめくります</item>
     </plurals>
 </resources>

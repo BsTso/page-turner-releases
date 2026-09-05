@@ -16,15 +16,10 @@
     <string name="swipe_large">Long · 65%</string>
     <string name="turn_when">When to turn</string>
     <string name="at_bottom">At the bottom</string>
-    <string name="hint_tap">Open a page, then hold the dot to choose a spot</string>
-    <string name="hint_scroll">Scroll down at your own pace</string>
-    <string name="hint_combined">Scroll first, then tap your chosen spot</string>
-    <string name="hint_smart">Experimental · Pauses if no next button is found</string>
     <string name="finish_connecting">Finish connecting</string>
     <string name="finish_setup">Set up PageTurner</string>
-    <string name="show_dot">Show floating dot</string>
-    <string name="dot_start_tip">Open a page and tap the dot to start, or hold it to choose a spot</string>
-    <string name="footer">Tap the number to edit · Touch the screen to pause</string>
+    <string name="show_dot">Show dot</string>
+    <string name="footer">Tap number to set interval · Touch to pause</string>
     <string name="settings_updated">Settings updated</string>
     <string name="interval_title">Interval in seconds</string>
     <string name="cancel">Cancel</string>
@@ -54,7 +49,7 @@
     <string name="setup_dot_visible">The dot is visible\nTap to start or pause, hold to expand</string>
     <string name="setup_find_dot">Tap below, then look near the top left of the screen</string>
     <string name="setup_finish">I see it · Continue</string>
-    <string name="setup_show_dot">Show the dot</string>
+    <string name="setup_show_dot">Show dot</string>
     <string name="setup_retry_dot">Show it again</string>
     <string name="setup_dot_tip">Open a page, then tap the dot to start\nHold to pick a spot, drag to move it</string>
     <string name="connecting_slow">Enabled, but not connected yet</string>
@@ -181,9 +176,5 @@
     <plurals name="swipe_count">
         <item quantity="one">%1$d scroll</item>
         <item quantity="other">%1$d scrolls</item>
-    </plurals>
-    <plurals name="fallback_hint">
-        <item quantity="one">If the bottom is unknown, turn after %1$d scroll</item>
-        <item quantity="other">If the bottom is unknown, turn after %1$d scrolls</item>
     </plurals>
 </resources>

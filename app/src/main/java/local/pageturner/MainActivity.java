@@ -71,20 +71,18 @@ public class MainActivity extends LocalizedActivity {
         if(mode==1 || mode==2) {
             String profile=ScreenProfiles.key(getWindowManager());
             gap(14); detail(s(R.string.swipe_distance),s(R.string.screen_percent,Math.round(ScreenProfiles.get(prefs,profile,"swipe",.5f)*100))).setOnClickListener(v -> new AlertDialog.Builder(this).setTitle(s(R.string.swipe_distance)).setItems(new String[]{s(R.string.swipe_small),s(R.string.swipe_medium),s(R.string.swipe_large)},(dlg,which) -> { ScreenProfiles.put(prefs,profile,"swipe",new float[]{.35f,.5f,.65f}[which]); changed(); }).show());
-            if(mode==2) detail(s(R.string.turn_when),prefs.getBoolean("auto_bottom",true)?s(R.string.at_bottom):quantity(R.plurals.after_swipes,prefs.getInt("steps",2))).setOnClickListener(v -> chooseSteps());
+            if(mode==2) { gap(8); detail(s(R.string.turn_when),prefs.getBoolean("auto_bottom",true)?s(R.string.at_bottom):quantity(R.plurals.after_swipes,prefs.getInt("steps",2))).setOnClickListener(v -> chooseSteps()); }
         }
-        gap(12); String[] hints={s(R.string.hint_tap),s(R.string.hint_scroll),prefs.getBoolean("auto_bottom",true)?quantity(R.plurals.fallback_hint,prefs.getInt("steps",2)):s(R.string.hint_combined),s(R.string.hint_smart)};
-        TextView hint=Ui.text(this,hints[mode],12,Ui.MUTED); hint.setLineSpacing(d(3),1); body.addView(hint);
-        gap(28);
+        gap(24);
         if(lastAccess!=SetupState.READY) {
             TextView permission=Ui.action(this,lastAccess==SetupState.CONNECTING?s(R.string.finish_connecting):s(R.string.finish_setup),0xffffffff,Ui.INK); body.addView(permission,new LinearLayout.LayoutParams(-1,d(54))); permission.setOnClickListener(v -> permission());
         } else {
             TextView show=Ui.action(this,s(R.string.show_dot),0xffffffff,Ui.INK); body.addView(show,new LinearLayout.LayoutParams(-1,d(54))); show.setOnClickListener(v -> {
                 TurnService service=TurnService.instance;
-                if(service!=null && service.showControlPoint()) Toast.makeText(this,s(R.string.dot_start_tip),Toast.LENGTH_LONG).show(); else permission();
+                if(service==null || !service.showControlPoint()) permission();
             });
         }
-        gap(14); TextView footer=Ui.text(this,s(R.string.footer),11,Ui.MUTED); footer.setGravity(Gravity.CENTER); body.addView(footer);
+        gap(12); TextView footer=Ui.text(this,s(R.string.footer),11,Ui.MUTED); footer.setGravity(Gravity.CENTER); body.addView(footer);
     }
     private int mode() { return Math.max(0,Math.min(3,prefs.getInt("mode",prefs.getBoolean("smart",false)?3:0))); }
     private String seconds() { double s=prefs.getLong("interval",10000)/1000.0; return s==(long)s?""+(long)s:""+s; }
@@ -112,7 +110,7 @@ public class MainActivity extends LocalizedActivity {
         LinearLayout links=new LinearLayout(this); LinearLayout.LayoutParams linksLp=new LinearLayout.LayoutParams(-1,d(54)); linksLp.topMargin=d(18); box.addView(links,linksLp);
         TextView help=Ui.action(this,s(R.string.help),Ui.MUTED,0x00000000),update=Ui.action(this,s(R.string.check_updates),Ui.MUTED,0x00000000);
         links.addView(help,new LinearLayout.LayoutParams(0,-1,1)); links.addView(update,new LinearLayout.LayoutParams(0,-1,1));
-        TextView version=Ui.text(this,s(R.string.version_label,"1.2"),11,Ui.MUTED); version.setGravity(Gravity.CENTER); box.addView(version);
+        TextView version=Ui.text(this,s(R.string.version_label,"1.2.1"),11,Ui.MUTED); version.setGravity(Gravity.CENTER); box.addView(version);
         TextView heading=Ui.text(this,s(R.string.settings),20,Ui.INK); Ui.bold(heading); heading.setPadding(d(24),d(24),d(24),d(8));
         ScrollView settingsScroll=new ScrollView(this); settingsScroll.addView(box);
         AlertDialog dialog=new AlertDialog.Builder(this).setCustomTitle(heading).setView(settingsScroll).create();

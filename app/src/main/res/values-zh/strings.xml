@@ -16,15 +16,10 @@
     <string name="swipe_large">大幅 · 65%</string>
     <string name="turn_when">何时翻页</string>
     <string name="at_bottom">滑到底后</string>
-    <string name="hint_tap">打开网页，长按圆点选择翻页位置</string>
-    <string name="hint_scroll">定时向上滑，慢慢往下看</string>
-    <string name="hint_combined">滑完再点击选好的位置</string>
-    <string name="hint_smart">试验功能 · 找不到下一页就暂停</string>
     <string name="finish_connecting">完成连接</string>
     <string name="finish_setup">完成使用准备</string>
-    <string name="show_dot">显示控制点</string>
-    <string name="dot_start_tip">打开网页，轻点圆点开始，长按选位置</string>
-    <string name="footer">点数字改间隔 · 手动触屏即暂停</string>
+    <string name="show_dot">显示圆点</string>
+    <string name="footer">点击数字修改间隔 · 触屏即停</string>
     <string name="settings_updated">设置已更新</string>
     <string name="interval_title">间隔 · 秒</string>
     <string name="cancel">取消</string>
@@ -54,7 +49,7 @@
     <string name="setup_dot_visible">小圆点已经显示\n轻点开始或暂停，长按展开</string>
     <string name="setup_find_dot">点下方按钮，再看看屏幕左上方</string>
     <string name="setup_finish">看到了，开始使用</string>
-    <string name="setup_show_dot">显示小圆点</string>
+    <string name="setup_show_dot">显示圆点</string>
     <string name="setup_retry_dot">没看到，重新显示</string>
     <string name="setup_dot_tip">打开网页后，轻点圆点开始\n长按可以选位置，拖动可以挪开</string>
     <string name="connecting_slow">已开启，还没连上</string>
@@ -104,7 +99,7 @@
     <string name="pick">选点</string>
     <string name="stop_hide">停止并隐藏</string>
     <string name="dot_description">轻点开始或暂停，长按展开，拖动挪位置</string>
-    <string name="panel_failed">控制点未能显示，请回应用检查使用准备</string>
+    <string name="panel_failed">圆点未能显示，请回应用检查使用准备</string>
     <string name="stopped">已停止</string>
     <string name="page_unreadable">读不到当前页面，请打开阅读页面</string>
     <string name="app_changed_confirm">换了应用，请确认位置后点开始</string>
@@ -115,7 +110,7 @@
     <string name="window_obstructed">出现键盘或其他窗口，已暂停</string>
     <string name="reached_bottom">已经滑到底了</string>
     <string name="bottom_not_found">还没找到底部，可改用固定次数</string>
-    <string name="move_dot">移动控制点后再开始</string>
+    <string name="move_dot">移动圆点后再开始</string>
     <string name="gesture_interrupted">点击被打断，已暂停</string>
     <string name="gesture_rejected">系统未接受点击，请检查权限</string>
     <string name="progress_unreadable">暂时看不出是否翻页，已暂停</string>
@@ -181,9 +176,5 @@
     <plurals name="swipe_count">
         <item quantity="one">%1$d 次</item>
         <item quantity="other">%1$d 次</item>
-    </plurals>
-    <plurals name="fallback_hint">
-        <item quantity="one">无法判断底部时，先滑 %1$d 次再翻页</item>
-        <item quantity="other">无法判断底部时，先滑 %1$d 次再翻页</item>
     </plurals>
 </resources>

@@ -27,7 +27,7 @@ Oh, and those times when your hands are busy… you know
 
 1. Download the APK and install it on your Android phone
 2. Follow the setup guide to enable the PageTurner accessibility service — no separate overlay permission is needed
-3. Choose an interval and reading mode, then tap **Show floating dot**
+3. Choose an interval and reading mode, then tap **Show dot**
 4. Open a reading page, hold the dot to choose a spot, then tap the dot to start
 
 Touch or scroll the page yourself to pause, then tap the dot to resume

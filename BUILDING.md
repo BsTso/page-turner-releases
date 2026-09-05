@@ -26,7 +26,7 @@ Android SDK 可通过 Android Studio 的 SDK Manager 安装上述两个组件
 
 脚本会编译源码、执行规则检查、打包并校验签名，安装包在 `dist` 下
 
-公开源码默认生成自己的 `development.keystore`，输出 `PageTurner-1.2-dev.apk`
+公开源码默认生成自己的 `development.keystore`，输出 `PageTurner-1.2.1-dev.apk`
 
 开发包和作者发布的安装包签名不同，不能直接覆盖安装，换装前请先记下自己的设置
 
@@ -55,7 +55,7 @@ Install JDK 17, Android SDK Platform 35 and Build-Tools 35.0.0, then run from th
 
 The script compiles the app, runs regression and translation checks, and signs the APK with your own development key
 
-Output: `dist/PageTurner-1.2-dev.apk`
+Output: `dist/PageTurner-1.2.1-dev.apk`
 
 A development APK cannot replace the author's APK because the signatures differ, and signing keys must never be committed
 
