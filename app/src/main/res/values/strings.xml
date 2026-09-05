@@ -1,0 +1,1 @@
+<resources><string name="service_description">按你设定的间隔点击或滑动\n读取当前页面，用来识别下一页、页面底部和翻页后的变化\n你手动触屏时会暂停\n\n不截屏，不保存或上传网页内容\n只有检查更新时会连接 GitHub\n\n开启权限不会自动翻页，要由你点开始\n暂停后也要手动继续</string></resources>

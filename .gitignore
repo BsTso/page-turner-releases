@@ -1,0 +1,16 @@
+toolchain/
+build/
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*.apk
+*.idsig
+dist/
+backups/
+verification/
+publication/
+local.properties
+.env
+.env.*
