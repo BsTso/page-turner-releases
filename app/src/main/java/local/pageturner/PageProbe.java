@@ -9,12 +9,13 @@ import java.util.ArrayDeque;
 /** Reads existing accessibility data only; never takes screenshots or retains page text. */
 final class PageProbe {
     static final class Snapshot {
-        String content, url, scrollKey;
+        String content, url, scrollKey, viewport;
+        Rect scrollBounds;
         int bottom=ReadingRules.UNKNOWN;
     }
     static String nodeKey(AccessibilityNodeInfo node) {
-        Rect r=new Rect(); node.getBoundsInScreen(r);
-        return node.getWindowId()+":"+node.getViewIdResourceName()+":"+node.getClassName()+":"+r.toShortString();
+        // Node identity survives browser toolbar resizing; bounds do not.
+        return node.getWindowId()+":"+node.getViewIdResourceName()+":"+node.getClassName()+":"+node.hashCode();
     }
     static Snapshot capture(AccessibilityNodeInfo root,int width,int height) {
         Snapshot result=new Snapshot(); if(root==null) return result;
@@ -36,7 +37,7 @@ final class PageProbe {
                 }
                 boolean vertical=has(node,AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.getId()) || has(node,AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.getId());
                 boolean horizontal=has(node,AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT.getId()) || has(node,AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT.getId());
-                if(node.isScrollable() && area>width*1L*height/5 && area>largestScroll && (vertical || !horizontal)) {
+                if((node.isScrollable() || cls.contains("WebView")) && r.left<=width/2 && r.right>=width/2 && area>width*1L*height/5 && area>largestScroll && (vertical || !horizontal)) {
                     if(scrollRoot!=null) scrollRoot.recycle(); scrollRoot=AccessibilityNodeInfo.obtain(node); largestScroll=area;
                 }
             }
@@ -45,6 +46,8 @@ final class PageProbe {
         boolean truncated=!queue.isEmpty(); while(!queue.isEmpty()) queue.remove().recycle();
         if(scrollRoot!=null) {
             result.scrollKey=nodeKey(scrollRoot);
+            result.scrollBounds=new Rect(); scrollRoot.getBoundsInScreen(result.scrollBounds);
+            result.viewport=viewportFingerprint(scrollRoot,width,height);
             boolean forward=has(scrollRoot,AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.getId()) || has(scrollRoot,AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);
             boolean backward=has(scrollRoot,AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.getId()) || has(scrollRoot,AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
             if(forward) result.bottom=ReadingRules.MORE;
@@ -54,6 +57,23 @@ final class PageProbe {
         if(contentRoot==null) contentRoot=AccessibilityNodeInfo.obtain(root);
         if(!truncated) result.content=fingerprint(contentRoot);
         contentRoot.recycle(); return result;
+    }
+    private static String viewportFingerprint(AccessibilityNodeInfo root,int width,int height) {
+        StringBuilder geometry=new StringBuilder(); int visited=0,landmarks=0;
+        ArrayDeque<AccessibilityNodeInfo> queue=new ArrayDeque<>(); addChildren(root,queue,0);
+        while(!queue.isEmpty() && visited++<1500) {
+            AccessibilityNodeInfo node=queue.remove(); Rect r=new Rect(); node.getBoundsInScreen(r);
+            String cls=String.valueOf(node.getClassName());
+            // Do not mistake an unlabelled full-screen canvas or a fixed container for movement evidence.
+            boolean edge=r.top>0 && r.top<height || r.bottom>0 && r.bottom<height;
+            if(node.isVisibleToUser() && !node.isPassword() && !node.isEditable() && !cls.contains("ProgressBar")
+                && r.right>0 && r.left<width && edge && (node.getChildCount()==0 || cls.contains("Image"))) {
+                geometry.append(node.hashCode()).append(':').append(r.left/3).append(':').append(r.top/3).append(':').append(r.right/3).append(':').append(r.bottom/3).append(';'); landmarks++;
+            }
+            addChildren(node,queue,visited); node.recycle();
+        }
+        boolean truncated=!queue.isEmpty(); while(!queue.isEmpty()) queue.remove().recycle();
+        return !truncated && landmarks>=2?hash(geometry.toString()):null;
     }
     private static String fingerprint(AccessibilityNodeInfo root) {
         StringBuilder text=new StringBuilder(); int visited=0,words=0;

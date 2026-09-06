@@ -15,9 +15,9 @@ Oh, and those times when your hands are busy… you know
 ## What it does
 
 - Turns pages at a set interval, using next-page button detection or a chosen spot on the screen
-- Scrolls down long pages, with an option to turn after reaching the bottom
+- Slowly scrolls to the bottom in one pass or two parts with a pause halfway, then optionally turns the page
 - Provides a floating dot: tap to start or pause, hold for controls, drag to move
-- Remembers tap positions and scroll distances for different foldable screen sizes
+- Remembers tap positions for different foldable screen sizes
 - Pauses after two turns with no detected page change, with an option to disable this check
 - Completely free, with no account or ads
 - Supports Chinese, English and Japanese, with an in-app language switch
@@ -31,6 +31,8 @@ Oh, and those times when your hands are busy… you know
 4. Open a reading page, hold the dot to choose a spot, then tap the dot to start
 
 Touch or scroll the page yourself to pause, then tap the dot to resume
+
+Choose **All the way down** or **Pause halfway, then continue**, with 1–30 seconds per part; the large number sets the pause between parts and before turning the page
 
 ## Languages
 
@@ -46,7 +48,9 @@ Requires Android 8.0 or later, with your reading page in the foreground
 
 Page turning pauses when you switch apps, lock the screen, fold the phone or rotate it
 
-Pages must expose readable accessibility information to detect the bottom or a next-page button; if the bottom cannot be detected, the app uses your chosen scroll count
+Halfway means half of the page’s scrollable distance from top to bottom, not half a screen; the page must report scroll information to locate it, and actual timing depends on page loading and the phone
+
+If page length is unavailable, try **All the way down**; if the bottom still cannot be confirmed, the app pauses instead of scrolling endlessly or guessing a turn from a fixed count
 
 Fixed-position taps cannot distinguish ads or page pop-ups, and touch-to-pause behavior may vary by phone
 

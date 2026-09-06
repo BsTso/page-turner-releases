@@ -1,5 +1,16 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="rest_interval">Pause between actions</string>
+    <string name="slow_scroll">Slow scroll</string>
+    <string name="scroll_page">All the way down</string>
+    <string name="scroll_halves">Pause halfway, then continue</string>
+    <string name="scroll_page_short">Full page</string>
+    <string name="scroll_halves_short">Two parts</string>
+    <string name="scroll_summary">%1$s · %2$d s</string>
+    <string name="scroll_duration">Time per part · %1$d s</string>
+    <string name="slow_scrolling">Scrolling slowly</string>
+    <string name="half_unavailable">Page length is unavailable, choose All the way down</string>
+    <string name="scroll_unreadable">Cannot confirm the bottom of this page, paused</string>
     <string name="language_label">Language</string>
     <string name="app_name">PageTurner</string>
     <string name="more_settings">More settings</string>

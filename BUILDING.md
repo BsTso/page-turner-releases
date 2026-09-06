@@ -26,7 +26,7 @@ Android SDK 可通过 Android Studio 的 SDK Manager 安装上述两个组件
 
 脚本会编译源码、执行规则检查、打包并校验签名，安装包在 `dist` 下
 
-公开源码默认生成自己的 `development.keystore`，输出 `PageTurner-1.2.1-dev.apk`
+公开源码默认生成自己的 `development.keystore`，输出 `PageTurner-1.3-dev.apk`
 
 开发包和作者发布的安装包签名不同，不能直接覆盖安装，换装前请先记下自己的设置
 
@@ -40,6 +40,8 @@ Android SDK 可通过 Android Studio 的 SDK Manager 安装上述两个组件
 | `app/src/main/java/local/pageturner/SetupActivity.java` | 权限引导 |
 | `app/src/main/java/local/pageturner/TurnService.java` | 悬浮圆点、点击和滑动 |
 | `app/src/main/java/local/pageturner/PageProbe.java` | 读取无障碍信息，不截屏 |
+| `app/src/main/java/local/pageturner/ScrollPlan.java` | 按页面长度计算整页、两段慢滑 |
+| `app/src/main/java/local/pageturner/ScrollWatch.java` | 用实际滚动和位置变化判断底部 |
 | `app/src/main/java/local/pageturner/ProgressWatch.java` | 短时比较页面变化 |
 | `tests` | 可在电脑上运行的规则检查 |
 
@@ -55,7 +57,7 @@ Install JDK 17, Android SDK Platform 35 and Build-Tools 35.0.0, then run from th
 
 The script compiles the app, runs regression and translation checks, and signs the APK with your own development key
 
-Output: `dist/PageTurner-1.2.1-dev.apk`
+Output: `dist/PageTurner-1.3-dev.apk`
 
 A development APK cannot replace the author's APK because the signatures differ, and signing keys must never be committed
 

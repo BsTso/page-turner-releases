@@ -1,5 +1,16 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="rest_interval">待ち時間</string>
+    <string name="slow_scroll">ゆっくりスクロール</string>
+    <string name="scroll_page">一番下まで一度に</string>
+    <string name="scroll_halves">半分で休んでから、一番下まで</string>
+    <string name="scroll_page_short">ページ全体</string>
+    <string name="scroll_halves_short">2段階</string>
+    <string name="scroll_summary">%1$s · %2$d 秒</string>
+    <string name="scroll_duration">1段階の時間 · %1$d 秒</string>
+    <string name="slow_scrolling">ゆっくりスクロール中</string>
+    <string name="half_unavailable">ページの長さを取得できません、一番下まで一度にを選んでください</string>
+    <string name="scroll_unreadable">ページの下端を確認できないため一時停止しました</string>
     <string name="language_label">言語</string>
     <string name="app_name">ページめくり</string>
     <string name="more_settings">設定を開く</string>

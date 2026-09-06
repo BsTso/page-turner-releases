@@ -1,5 +1,16 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="rest_interval">停顿间隔</string>
+    <string name="slow_scroll">慢滑</string>
+    <string name="scroll_page">一次滑到底</string>
+    <string name="scroll_halves">滑到一半停，再滑到底</string>
+    <string name="scroll_page_short">整页</string>
+    <string name="scroll_halves_short">两段</string>
+    <string name="scroll_summary">%1$s · %2$d 秒</string>
+    <string name="scroll_duration">每段用时 · %1$d 秒</string>
+    <string name="slow_scrolling">正在慢滑</string>
+    <string name="half_unavailable">读不到页面长度，请改用一次滑到底</string>
+    <string name="scroll_unreadable">无法确认页面是否到底，已暂停</string>
     <string name="language_label">语言</string>
     <string name="app_name">轻翻页</string>
     <string name="more_settings">更多设置</string>

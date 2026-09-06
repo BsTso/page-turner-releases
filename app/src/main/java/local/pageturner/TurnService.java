@@ -26,7 +26,12 @@ public class TurnService extends AccessibilityService {
     private WindowManager.LayoutParams panelParams;
     private boolean running, busy, smart;
     private int mode, phase, steps=2;
-    private float swipeDistance=.5f;
+    private long swipeDuration=10000, busyUntil;
+    private int scrollKind=ScrollPlan.PAGE, passSwipes;
+    private ScrollPlan scrollPlan;
+    private final ScrollWatch scrollWatch=new ScrollWatch();
+    private float metricScale=1;
+    private int metricBefore=-1;
     private String target, homePackage = "";
     private int targetWindow, screenWidth, screenHeight, generation, count, rotation;
     private float pointX = .8f, pointY = .5f;
@@ -34,9 +39,9 @@ public class TurnService extends AccessibilityService {
     private long ownStart, ownEnd;
     private boolean autoBottom,checkProgress,watching;
     private final ProgressWatch progressWatch=new ProgressWatch();
-    private int missedTurns,scrollBottom=ReadingRules.UNKNOWN;
-    private String scrollKey,ownScrollKey;
-    private long scrollAt,nextProbe;
+    private int missedTurns;
+    private String ownScrollKey;
+    private long nextProbe;
     private String reason = "";
     private String panelLanguage;
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
@@ -48,12 +53,12 @@ public class TurnService extends AccessibilityService {
             long now = SystemClock.uptimeMillis();
             if (!guard()) return;
             if (now >= stopAt) { pause(s(R.string.timer_ended)); return; }
-            if (busy && now - busyAt > 3000) { pause(s(R.string.action_timeout)); return; }
+            if (busy && now > busyUntil) { pause(s(R.string.action_timeout)); return; }
             if(watching && now>=nextProbe) checkTurn(now);
             if (!running) return;
             if (!busy && !watching && now >= due) performTurn();
             if (!running) return;
-            status.setText(watching?s(R.string.waiting_page):s(R.string.action_countdown,s(mode==1 || mode==2 && phase<steps?R.string.action_scroll:smart?R.string.action_find:R.string.action_turn),Math.max(0,(due-now+999)/1000)));
+            status.setText(busy?s(R.string.slow_scrolling):watching?s(R.string.waiting_page):s(R.string.action_countdown,s(mode==1 || mode==2 && scrollWatch.bottom(ownScrollKey,ReadingRules.UNKNOWN)!=ReadingRules.BOTTOM?R.string.action_scroll:smart?R.string.action_find:R.string.action_turn),Math.max(0,(due-now+999)/1000)));
             if (bubble!=null) bubble.invalidate();
             handler.postDelayed(this, 500);
         }
@@ -174,9 +179,11 @@ public class TurnService extends AccessibilityService {
         target=pkg; targetWindow=root.getWindowId(); root.recycle();
         screenWidth=s.x; screenHeight=s.y; rotation=manager.getDefaultDisplay().getRotation();
         String profile=ScreenProfiles.key(manager);
-        mode=nextMode; steps=nextSteps; swipeDistance=ScreenProfiles.get(p,profile,"swipe",.5f);
+        mode=nextMode; steps=nextSteps;
+        scrollKind=p.getInt("scroll_kind",ScrollPlan.PAGE)==ScrollPlan.HALVES?ScrollPlan.HALVES:ScrollPlan.PAGE;
+        swipeDuration=Rules.swipeDuration(p.getLong("swipe_duration",10000));
         pointX=ScreenProfiles.get(p,profile,"x",.8f); pointY=ScreenProfiles.get(p,profile,"y",.5f);
-        autoBottom=p.getBoolean("auto_bottom",true); checkProgress=p.getBoolean("check_progress",true);
+        autoBottom=true; checkProgress=p.getBoolean("check_progress",true);
         watching=false; missedTurns=0; progressWatch.clear(); clearScroll();
         interval=p.getLong("interval",10000); smart=mode==3;
         count=0; busy=false; running=true; generation++;
@@ -212,28 +219,98 @@ public class TurnService extends AccessibilityService {
     private void performTurn() {
         if (!guard()) return;
         PageProbe.Snapshot before=snapshot();
-        if (smart) { clickNextNode(before); return; }
-        int bottom=before.bottom;
-        if(before.scrollKey!=null && before.scrollKey.equals(scrollKey) && SystemClock.uptimeMillis()-scrollAt<interval+3000) bottom=scrollBottom;
+        if (smart) { clickNextNode(before,false); return; }
+        int bottom=scrollWatch.bottom(before.scrollKey,before.bottom);
         if(mode==1 && bottom==ReadingRules.BOTTOM) { pause(s(R.string.reached_bottom)); expandPanel(); return; }
-        boolean swipe=ReadingRules.swipeNext(mode,autoBottom,bottom,phase,steps);
-        if(mode==2 && autoBottom && swipe && phase>=60) { pause(s(R.string.bottom_not_found)); expandPanel(); return; }
-        float x=screenWidth*(swipe?.5f:pointX), y=screenHeight*(swipe?.8f:pointY);
-        float endY=swipe?screenHeight*Rules.swipeEnd(swipeDistance):y;
+        boolean swipe=(mode==1 || mode==2) && bottom!=ReadingRules.BOTTOM;
+        if(swipe) {
+            scrollPlan=new ScrollPlan(scrollKind,swipeDuration); passSwipes=0;
+            scrollPlan.locate(scrollWatch.position(),scrollWatch.maximum(),SystemClock.uptimeMillis());
+            scrollPart(before); return;
+        }
+        if(mode==2 && clickNextNode(before,true)) return;
+        float x=screenWidth*pointX, y=screenHeight*pointY;
+        float endY=y;
         if (pathHitsPanel(x,y,endY)) { pause(s(R.string.move_dot)); return; }
         Path path=new Path(); path.moveTo(x,y);
-        if(swipe) path.lineTo(x,endY);
-        long duration=swipe?1000:70;
+        long duration=70;
         GestureDescription gesture=new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(path,0,duration)).build();
         if(!guard()) return;
-        ownScrollKey=swipe?before.scrollKey:null;
+        ownScrollKey=null;
         ownStart=SystemClock.uptimeMillis(); ownEnd=ownStart+duration+250;
-        busy=true; busyAt=SystemClock.uptimeMillis(); final int token=generation;
+        busy=true; busyAt=SystemClock.uptimeMillis(); busyUntil=busyAt+duration+3000; final int token=generation;
         boolean accepted=dispatchGesture(gesture,new GestureResultCallback() {
             @Override public void onCompleted(GestureDescription g) { if (running && token==generation) completed(swipe,before); }
             @Override public void onCancelled(GestureDescription g) { if (token==generation) pause(s(R.string.gesture_interrupted)); }
         },handler);
         if (!accepted) pause(s(R.string.gesture_rejected));
+    }
+    private void scrollPart(PageProbe.Snapshot before) {
+        if(!guard() || scrollPlan==null) return;
+        if(++passSwipes>60) { pause(s(R.string.bottom_not_found)); expandPanel(); return; }
+        Rect area=before.scrollBounds==null?new Rect(0,dp(32),screenWidth,screenHeight-dp(32)):new Rect(before.scrollBounds);
+        if(!area.intersect(dp(12),dp(24),screenWidth-dp(12),screenHeight-dp(24)) || area.height()<dp(80)) { pause(s(R.string.page_unreadable)); return; }
+        int yPosition=scrollWatch.position(),maximum=scrollWatch.maximum(); long now=SystemClock.uptimeMillis();
+        scrollPlan.locate(yPosition,maximum,now);
+        if(scrollPlan.reached(yPosition,maximum)) { finishPass(); return; }
+        // A short first movement obtains the browser's actual scroll range.
+        float intended=scrollPlan.located()?scrollPlan.distance(yPosition,maximum,area.height(),metricScale):passSwipes==1?ViewConfiguration.get(this).getScaledTouchSlop()*2f+2:area.height()*.85f;
+        float distance=Math.min(area.height()*.85f,Math.max(ViewConfiguration.get(this).getScaledTouchSlop()*2f+2,intended));
+        long duration=scrollPlan.located()?scrollPlan.duration(yPosition,maximum,distance,metricScale,now):passSwipes==1?180:swipeDuration;
+        if(distance<1) { finishPass(); return; }
+        float x=area.exactCenterX(),from=area.bottom-area.height()*.06f,to=from-distance;
+        if(pathHitsPanel(x,from,to)) { pause(s(R.string.move_dot)); return; }
+        ownScrollKey=before.scrollKey; scrollWatch.begin(ownScrollKey,before.viewport); metricBefore=scrollWatch.position();
+        ownStart=now; ownEnd=now+duration+1000; busy=true; busyAt=now; busyUntil=now+duration+5000;
+        final int token=generation; final ScrollPlan plan=scrollPlan;
+        // Continued short strokes let pause end a slow drag without injecting a new tap.
+        dragSegment(null,x,from,to,from,duration,duration,token,() -> {
+            if(!running || token!=generation || plan!=scrollPlan) return;
+            ownEnd=SystemClock.uptimeMillis()+250;
+            busyUntil=SystemClock.uptimeMillis()+3000;
+            handler.postDelayed(() -> {
+                if(!running || token!=generation || plan!=scrollPlan || !guard()) return;
+                PageProbe.Snapshot after=snapshot();
+                int end=scrollWatch.finish(after.scrollKey,after.viewport,after.bottom);
+                int position=scrollWatch.position(),max=scrollWatch.maximum();
+                if(metricBefore>=0 && position-metricBefore>dp(8)) metricScale=Math.max(.25f,Math.min(4,distance/(position-metricBefore)));
+                scrollPlan.locateAfterProbe(position,max,distance/metricScale,SystemClock.uptimeMillis());
+                if(end==ReadingRules.BOTTOM || scrollPlan.reached(position,max)) { finishPass(); return; }
+                if(!scrollPlan.located() && scrollKind==ScrollPlan.HALVES) { pause(s(R.string.half_unavailable)); expandPanel(); return; }
+                if(end==ReadingRules.UNKNOWN && passSwipes>=2) { pause(s(R.string.scroll_unreadable)); expandPanel(); return; }
+                scrollPart(after);
+            },350);
+        });
+    }
+    private void dragSegment(GestureDescription.StrokeDescription previous,float x,float from,float to,float current,long remaining,long total,int token,Runnable done) {
+        long slice=Math.min(250,remaining);
+        float next=current+(to-current)*slice/remaining;
+        // Cross touch slop promptly so very slow image drags do not become long presses.
+        if(previous==null && remaining>250) {
+            slice=Math.min(100,remaining);
+            float kick=Math.min(from-to,ViewConfiguration.get(this).getScaledTouchSlop()*2f+1);
+            next=from-kick;
+        }
+        boolean more=remaining>slice && next>to+.5f;
+        if(!more) next=to;
+        Path path=new Path(); path.moveTo(x,current); path.lineTo(x,next);
+        final float end=next; final long rest=remaining-slice;
+        GestureDescription.StrokeDescription stroke=previous==null?new GestureDescription.StrokeDescription(path,0,slice,more):previous.continueStroke(path,0,slice,more);
+        boolean accepted=dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(),new GestureResultCallback() {
+            @Override public void onCompleted(GestureDescription g) {
+                if(!running || token!=generation || !guard()) {
+                    if(stroke.willContinue()) { Path up=new Path(); up.moveTo(x,end); dispatchGesture(new GestureDescription.Builder().addStroke(stroke.continueStroke(up,0,1,false)).build(),null,handler); }
+                    return;
+                }
+                if(more) { ownEnd=SystemClock.uptimeMillis()+rest+1000; busyUntil=SystemClock.uptimeMillis()+rest+5000; dragSegment(stroke,x,from,to,end,rest,total,token,done); } else done.run();
+            }
+            @Override public void onCancelled(GestureDescription g) { if(running && token==generation) pause(s(R.string.gesture_interrupted)); }
+        },handler);
+        if(!accepted) pause(s(R.string.gesture_rejected));
+    }
+    private void finishPass() {
+        busy=false; count++; phase++; scrollPlan=null;
+        due=SystemClock.uptimeMillis()+interval;
     }
     private void completed(boolean swipe,PageProbe.Snapshot before) {
         busy=false; count++; phase=swipe?phase+1:0; long now=SystemClock.uptimeMillis(); due=now+interval;
@@ -253,10 +330,10 @@ public class TurnService extends AccessibilityService {
             pause(result==ProgressWatch.UNREADABLE?s(R.string.progress_unreadable):s(R.string.progress_unchanged)); expandPanel();
         }
     }
-    private void clearScroll() { scrollKey=null; ownScrollKey=null; scrollBottom=ReadingRules.UNKNOWN; scrollAt=0; }
-    private void clickNextNode(PageProbe.Snapshot before) {
+    private void clearScroll() { ownScrollKey=null; scrollWatch.clear(); scrollPlan=null; metricScale=1; }
+    private boolean clickNextNode(PageProbe.Snapshot before,boolean optional) {
         AccessibilityNodeInfo root=getRootInActiveWindow();
-        if (root == null) { pause(s(R.string.page_lost)); return; }
+        if (root == null) { pause(s(R.string.page_lost)); return true; }
         ArrayDeque<AccessibilityNodeInfo> queue=new ArrayDeque<>(); queue.add(root);
         LinkedHashMap<String,AccessibilityNodeInfo> matches=new LinkedHashMap<>(); int visited=0;
         while (!queue.isEmpty() && visited++ < 2000) {
@@ -283,12 +360,14 @@ public class TurnService extends AccessibilityService {
         boolean truncated=!queue.isEmpty(); while(!queue.isEmpty()) queue.remove().recycle();
         if (truncated || matches.size()!=1) {
             for(AccessibilityNodeInfo n:matches.values()) n.recycle();
-            pause(truncated ? s(R.string.page_complex) : matches.isEmpty() ? s(R.string.next_missing) : s(R.string.next_ambiguous)); return;
+            if(optional && !truncated && matches.isEmpty()) return false;
+            pause(truncated ? s(R.string.page_complex) : matches.isEmpty() ? s(R.string.next_missing) : s(R.string.next_ambiguous)); return true;
         }
         AccessibilityNodeInfo n=matches.values().iterator().next();
-        if (!guard()) { n.recycle(); return; }
+        if (!guard()) { n.recycle(); return true; }
         boolean ok=n.refresh() && n.isEnabled() && n.isVisibleToUser() && n.performAction(AccessibilityNodeInfo.ACTION_CLICK); n.recycle();
         if (ok) completed(false,before); else pause(s(R.string.button_failed));
+        return true;
     }
     private void pickPoint() {
         pause(s(R.string.pick_tip)); removePicker(); removeMarker();
@@ -341,8 +420,7 @@ public class TurnService extends AccessibilityService {
             AccessibilityNodeInfo source=e.getSource(); if(source==null) return;
             String key=PageProbe.nodeKey(source); source.recycle();
             if(key.equals(ownScrollKey)) {
-                int bottom=ReadingRules.scrollPosition(e.getScrollY(),e.getMaxScrollY());
-                if(bottom!=ReadingRules.UNKNOWN) { scrollKey=key; scrollBottom=bottom; scrollAt=now; }
+                scrollWatch.metric(key,e.getScrollY(),e.getMaxScrollY());
             }
         }
     }

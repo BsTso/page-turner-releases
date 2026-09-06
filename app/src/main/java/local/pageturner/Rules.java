@@ -11,6 +11,7 @@ public final class Rules {
         return mode == 2 ? (phase + 1) % (Math.max(1, Math.min(6, steps)) + 1) : 0;
     }
     public static float swipeEnd(float distance) { return .8f - Math.max(.35f, Math.min(.65f, distance)); }
+    public static long swipeDuration(long duration) { return Math.max(1000,Math.min(30000,duration)); }
     public static boolean ownInjectedTouch(int deviceId, int toolType, long eventTime, long ownStart, long ownEnd) {
         // AOSP accessibility gestures use a virtual device and TOOL_TYPE_UNKNOWN.
         // Physical finger/stylus events are never suppressed, even during our gesture.

@@ -39,7 +39,7 @@ public class MainActivity extends LocalizedActivity {
         LinearLayout header=new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL); body.addView(header);
         TextView title=Ui.text(this,s(R.string.app_name),22,Ui.INK); Ui.bold(title); header.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         TextView more=Ui.action(this,"·",Ui.MUTED,Ui.BG); more.setTextSize(26); more.setPadding(0,0,0,0); more.setSingleLine(); more.setContentDescription(s(R.string.more_settings)); header.addView(more,new LinearLayout.LayoutParams(d(48),d(48))); more.setOnClickListener(v -> more());
-        gap(28); body.addView(Ui.text(this,s(R.string.interval_label),12,Ui.MUTED));
+        gap(28); body.addView(Ui.text(this,s(mode()==1 || mode()==2?R.string.rest_interval:R.string.interval_label),12,Ui.MUTED));
         LinearLayout digits=new LinearLayout(this); digits.setGravity(Gravity.BOTTOM); body.addView(digits);
         TextView number=Ui.text(this,seconds(),88,Ui.INK); number.setTypeface(android.graphics.Typeface.create("sans-serif-light",0)); number.setSingleLine();
         number.setContentDescription(s(R.string.interval_accessibility,seconds())); digits.addView(number);
@@ -69,9 +69,7 @@ public class MainActivity extends LocalizedActivity {
             row.setContentDescription(mode==i?s(R.string.selected_mode,MODES[i]):MODES[i]); row.setClickable(true); row.setOnClickListener(v -> { prefs.edit().putInt("mode",choice).putBoolean("smart",choice==3).apply(); changed(); });
         }
         if(mode==1 || mode==2) {
-            String profile=ScreenProfiles.key(getWindowManager());
-            gap(14); detail(s(R.string.swipe_distance),s(R.string.screen_percent,Math.round(ScreenProfiles.get(prefs,profile,"swipe",.5f)*100))).setOnClickListener(v -> new AlertDialog.Builder(this).setTitle(s(R.string.swipe_distance)).setItems(new String[]{s(R.string.swipe_small),s(R.string.swipe_medium),s(R.string.swipe_large)},(dlg,which) -> { ScreenProfiles.put(prefs,profile,"swipe",new float[]{.35f,.5f,.65f}[which]); changed(); }).show());
-            if(mode==2) { gap(8); detail(s(R.string.turn_when),prefs.getBoolean("auto_bottom",true)?s(R.string.at_bottom):quantity(R.plurals.after_swipes,prefs.getInt("steps",2))).setOnClickListener(v -> chooseSteps()); }
+            gap(14); detail(s(R.string.slow_scroll),s(R.string.scroll_summary,s(prefs.getInt("scroll_kind",ScrollPlan.PAGE)==ScrollPlan.HALVES?R.string.scroll_halves_short:R.string.scroll_page_short),Rules.swipeDuration(prefs.getLong("swipe_duration",10000))/1000)).setOnClickListener(v -> editScroll());
         }
         gap(24);
         if(lastAccess!=SetupState.READY) {
@@ -91,10 +89,22 @@ public class MainActivity extends LocalizedActivity {
         EditText e=input(seconds(),true); AlertDialog dlg=new AlertDialog.Builder(this).setTitle(s(R.string.interval_title)).setView(e).setNegativeButton(s(R.string.cancel),null).setPositiveButton(s(R.string.save),null).create();
         dlg.setOnShowListener(v -> dlg.getButton(-1).setOnClickListener(w -> { try { long ms=Rules.intervalMillis(e.getText().toString()); prefs.edit().putLong("interval",ms).apply(); dlg.dismiss(); changed(); } catch(Exception ex) { e.setError(s(R.string.interval_error)); } })); dlg.show();
     }
-    private void chooseSteps() {
-        new AlertDialog.Builder(this).setTitle(s(R.string.turn_when)).setItems(new String[]{s(R.string.at_bottom),quantity(R.plurals.after_swipes,1),quantity(R.plurals.after_swipes,2),quantity(R.plurals.after_swipes,3),quantity(R.plurals.after_swipes,4),quantity(R.plurals.after_swipes,5),quantity(R.plurals.after_swipes,6)},(dialog,which) -> {
-            if(which==0) new AlertDialog.Builder(this).setTitle(s(R.string.fallback_title)).setItems(new String[]{quantity(R.plurals.swipe_count,1),quantity(R.plurals.swipe_count,2),quantity(R.plurals.swipe_count,3),quantity(R.plurals.swipe_count,4),quantity(R.plurals.swipe_count,5),quantity(R.plurals.swipe_count,6)},(a,b) -> { prefs.edit().putBoolean("auto_bottom",true).putInt("steps",b+1).apply(); changed(); }).show();
-            else { prefs.edit().putBoolean("auto_bottom",false).putInt("steps",which).apply(); changed(); }
+    private void editScroll() {
+        LinearLayout box=Ui.column(this); box.setPadding(d(24),d(8),d(24),d(12));
+        RadioGroup choices=new RadioGroup(this); box.addView(choices);
+        for(int kind:new int[]{ScrollPlan.PAGE,ScrollPlan.HALVES}) {
+            RadioButton option=new RadioButton(this); option.setId(kind); option.setText(s(kind==ScrollPlan.PAGE?R.string.scroll_page:R.string.scroll_halves)); option.setTextSize(15); option.setTextColor(Ui.INK);
+            option.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.INK)); choices.addView(option,new RadioGroup.LayoutParams(-1,d(52)));
+        }
+        choices.check(prefs.getInt("scroll_kind",ScrollPlan.PAGE)==ScrollPlan.HALVES?ScrollPlan.HALVES:ScrollPlan.PAGE);
+        TextView label=Ui.text(this,"",16,Ui.INK); label.setPadding(0,d(24),0,d(8)); box.addView(label);
+        SeekBar duration=new SeekBar(this); duration.setMax(29); duration.setProgress((int)(Rules.swipeDuration(prefs.getLong("swipe_duration",10000))/1000)-1);
+        duration.setProgressTintList(android.content.res.ColorStateList.valueOf(Ui.INK)); duration.setThumbTintList(android.content.res.ColorStateList.valueOf(Ui.INK)); box.addView(duration);
+        label.setText(s(R.string.scroll_duration,duration.getProgress()+1));
+        duration.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() { public void onProgressChanged(SeekBar view,int value,boolean user) { label.setText(s(R.string.scroll_duration,value+1)); } public void onStartTrackingTouch(SeekBar view) {} public void onStopTrackingTouch(SeekBar view) {} });
+        ScrollView scroll=new ScrollView(this); scroll.addView(box);
+        new AlertDialog.Builder(this).setTitle(s(R.string.slow_scroll)).setView(scroll).setNegativeButton(s(R.string.cancel),null).setPositiveButton(s(R.string.save),(a,b) -> {
+            prefs.edit().putInt("scroll_kind",choices.getCheckedRadioButtonId()).putLong("swipe_duration",(duration.getProgress()+1)*1000L).apply(); changed();
         }).show();
     }
     private void more() {
@@ -110,7 +120,7 @@ public class MainActivity extends LocalizedActivity {
         LinearLayout links=new LinearLayout(this); LinearLayout.LayoutParams linksLp=new LinearLayout.LayoutParams(-1,d(54)); linksLp.topMargin=d(18); box.addView(links,linksLp);
         TextView help=Ui.action(this,s(R.string.help),Ui.MUTED,0x00000000),update=Ui.action(this,s(R.string.check_updates),Ui.MUTED,0x00000000);
         links.addView(help,new LinearLayout.LayoutParams(0,-1,1)); links.addView(update,new LinearLayout.LayoutParams(0,-1,1));
-        TextView version=Ui.text(this,s(R.string.version_label,"1.2.1"),11,Ui.MUTED); version.setGravity(Gravity.CENTER); box.addView(version);
+        TextView version=Ui.text(this,s(R.string.version_label,"1.3"),11,Ui.MUTED); version.setGravity(Gravity.CENTER); box.addView(version);
         TextView heading=Ui.text(this,s(R.string.settings),20,Ui.INK); Ui.bold(heading); heading.setPadding(d(24),d(24),d(24),d(8));
         ScrollView settingsScroll=new ScrollView(this); settingsScroll.addView(box);
         AlertDialog dialog=new AlertDialog.Builder(this).setCustomTitle(heading).setView(settingsScroll).create();
@@ -154,7 +164,7 @@ public class MainActivity extends LocalizedActivity {
     }
     private void permission() { startActivity(new Intent(this,SetupActivity.class)); }
     private EditText input(String value,boolean decimal) { EditText e=new EditText(this); e.setInputType(InputType.TYPE_CLASS_NUMBER|(decimal?InputType.TYPE_NUMBER_FLAG_DECIMAL:0)); e.setSingleLine(); e.setText(value); e.selectAll(); e.setPadding(d(24),d(12),d(24),d(12)); return e; }
-    private TextView detail(String key,String value) { TextView t=Ui.action(this,key+"    "+value,Ui.INK,0xfff0f0f2); body.addView(t,new LinearLayout.LayoutParams(-1,d(48))); return t; }
+    private TextView detail(String key,String value) { TextView t=Ui.action(this,key+"    "+value,Ui.INK,0xfff0f0f2); t.setMinHeight(d(48)); body.addView(t,new LinearLayout.LayoutParams(-1,-2)); return t; }
     private void section(String text) { body.addView(Ui.text(this,text,12,Ui.MUTED)); gap(12); }
     private void gap(int h) { body.addView(new View(this),new LinearLayout.LayoutParams(1,d(h))); }
     private int d(int n) { return Ui.dp(this,n); }
