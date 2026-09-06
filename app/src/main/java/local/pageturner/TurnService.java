@@ -173,12 +173,12 @@ public class TurnService extends AccessibilityService {
         final Paint paint=new Paint(3);
         Bubble() { super(TurnService.this); setLayerType(View.LAYER_TYPE_SOFTWARE,null); }
         protected void onDraw(Canvas c) {
-            float cx=getWidth()/2f,cy=getHeight()/2f,r=dp(15); paint.setStyle(Paint.Style.FILL); paint.setColor(Ui.INK); c.drawCircle(cx,cy,r,paint);
+            float wave=running?(float)((1-Math.cos(Math.PI*(due-SystemClock.uptimeMillis())/1000.0))/2):0;
+            float cx=getWidth()/2f,cy=getHeight()/2f,r=dp(15)*(running?.96f+.08f*wave:1); paint.setStyle(Paint.Style.FILL); paint.setColor(Ui.INK); c.drawCircle(cx,cy,r,paint);
             paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(dp(1)); paint.setColor(0xffd0d1d6); c.drawCircle(cx,cy,r,paint);
-            if(running) { paint.setStrokeWidth(dp(2)); paint.setColor(Color.WHITE); float fraction=Math.max(0,Math.min(1,(due-SystemClock.uptimeMillis())/(float)Math.max(3000,interval))); c.drawArc(cx-r,cy-r,cx+r,cy+r,-90,360*fraction,false,paint); }
             paint.setStyle(Paint.Style.FILL); paint.setColor(Color.WHITE);
-            if(running) { c.drawRoundRect(cx-dp(4),cy-dp(5),cx-dp(1),cy+dp(5),dp(1),dp(1),paint); c.drawRoundRect(cx+dp(1),cy-dp(5),cx+dp(4),cy+dp(5),dp(1),dp(1),paint); }
-            else c.drawCircle(cx,cy,dp(2),paint);
+            c.drawCircle(cx,cy,running?dp(3)*(.92f+.16f*wave):dp(2),paint);
+            if(running && isShown()) postInvalidateDelayed(33);
         }
     }
     private class FocusMask extends View {

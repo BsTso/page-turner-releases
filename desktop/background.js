@@ -5,7 +5,7 @@ async function stop(id) {
   await chrome.storage.session.remove(key(id));
   try { await chrome.tabs.sendMessage(id,{type:'pt:pause'}); } catch {}
 }
-async function inject(tabId) { await chrome.scripting.executeScript({target:{tabId},files:['common.js','content.js']}); }
+async function inject(tabId) { return chrome.scripting.executeScript({target:{tabId},files:['common.js','content.js']}); }
 chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
   (async()=>{
     if(!msg || !String(msg.type).startsWith('pt:')) return {};
@@ -26,7 +26,7 @@ chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
         const origin=new URL(sender.url).origin;
         let expected=null; try { const target=new URL(msg.expected); if(target.origin===origin) expected=target.href; } catch {}
         const hints=Object.fromEntries(['image','next'].filter(k=>typeof msg.hints?.[k]==='string'&&msg.hints[k].length<=512).map(k=>[k,msg.hints[k]]));
-        await chrome.storage.session.set({[key(id)]:{origin,settings:PageTurnerCore.settings(msg.settings),hints,expected,expires:Date.now()+20000,stopAt:existing?.stopAt||Date.now()+1800000}});
+        await chrome.storage.session.set({[key(id)]:{origin,documentId:sender.documentId,settings:PageTurnerCore.settings(msg.settings),hints,expected,expires:Date.now()+20000,stopAt:existing?.stopAt||Date.now()+1800000}});
       }
     }
     return {ok:true};
@@ -38,8 +38,11 @@ chrome.tabs.onUpdated.addListener((id,change,tab)=>{
   (async()=>{
     const state=await session(id); if(!state) return;
     let url; try { url=new URL(tab.url); } catch { return stop(id); }
-    if(url.origin!==state.origin || !state.expected || url.href!==state.expected || Date.now()>state.expires || Date.now()>state.stopAt || !tab.active) return stop(id);
-    await inject(id);
+    if(url.origin!==state.origin || Date.now()>state.stopAt || !tab.active) return stop(id);
+    const frames=await inject(id);
+    // History API changes keep the existing reader and its pending image-load check.
+    if(state.documentId && frames.some(frame=>frame.documentId===state.documentId))return;
+    if(!state.expected || url.href!==state.expected || Date.now()>state.expires) return stop(id);
     await chrome.tabs.sendMessage(id,{type:'pt:resume',settings:state.settings,stopAt:state.stopAt,hints:state.hints});
   })().catch(()=>stop(id));
 });

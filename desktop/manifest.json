@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PageTurner · 轻翻页",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Quiet comic reading with slow scrolling, halfway pauses and automatic page turns · JamieTso",
   "minimum_chrome_version": "114",
   "permissions": ["activeTab", "scripting", "storage"],
