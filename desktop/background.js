@@ -25,7 +25,7 @@ chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
         const existing=await session(id);
         const origin=new URL(sender.url).origin;
         let expected=null; try { const target=new URL(msg.expected); if(target.origin===origin) expected=target.href; } catch {}
-        const hints=Object.fromEntries(['image','next'].filter(k=>typeof msg.hints?.[k]==='string'&&msg.hints[k].length<=512).map(k=>[k,msg.hints[k]]));
+        const hints=Object.fromEntries(['image','autoImage','next'].filter(k=>typeof msg.hints?.[k]==='string'&&msg.hints[k].length<=512).map(k=>[k,msg.hints[k]]));
         await chrome.storage.session.set({[key(id)]:{origin,documentId:sender.documentId,settings:PageTurnerCore.settings(msg.settings),hints,expected,expires:Date.now()+20000,stopAt:existing?.stopAt||Date.now()+1800000}});
       }
     }

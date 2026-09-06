@@ -19,6 +19,7 @@ Open a comic page, click the extension icon, choose your settings and click **St
 - The large number controls pauses; slow-scroll the full page or pause halfway, with 1–30 seconds per part
 - **Image only** uses a clean reader layer; turn it off to scroll the original page
 - New pages start at the top; pausing and resuming keeps your reading position
+- Scrolling eases in and out with a steady middle; it waits for the main image to load and pauses if it cannot find it
 - A gently breathing dot means running; a still dot means paused, and hovering shows the remaining seconds
 - Click, wheel, key input or switching tabs pauses; the dot resumes and × closes the controls
 - Use the dot at the top right to choose the main image or next-page button if automatic detection is wrong

@@ -6,6 +6,13 @@ fs.mkdirSync(work,{recursive:true});const extension=path.join(work,'extension');
 const manifest=JSON.parse(fs.readFileSync(path.join(extension,'manifest.json')));manifest.host_permissions=['http://127.0.0.1/*'];fs.writeFileSync(path.join(extension,'manifest.json'),JSON.stringify(manifest));
 let checks=0;const check=(value,reason)=>{assert.ok(value,reason);checks++;};
 const server=http.createServer((req,res)=>{
+  if(req.url==='/blank.svg'){res.writeHead(200,{'Content-Type':'image/svg+xml'});res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');return;}
+  if(req.url==='/wallpaper.svg'){res.writeHead(200,{'Content-Type':'image/svg+xml'});res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="4000"><rect width="1600" height="4000" fill="#1e2b3c"/></svg>');return;}
+  if(req.url.startsWith('/identity')){
+    const second=req.url.includes('page=2'),failed=req.url.includes('fail=1');
+    res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
+    res.end(`<!doctype html><style>body{margin:0}main{width:800px;margin:auto}#img{width:800px;height:2400px}#wallpaper{width:100%;position:absolute;top:0;z-index:-1}</style>${second?'<img id="wallpaper" src="/wallpaper.svg">':''}<main><img id="img" src="${second?'/blank.svg':'/comic1.svg'}"><a href="/identity?page=2${failed?'&fail=1':''}">Next page</a></main>${second&&!failed?'<script>setTimeout(()=>document.querySelector("#img").src="/comic2.svg",1200)</script>':''}`);return;
+  }
   if(req.url.startsWith('/slow.svg')){setTimeout(()=>{res.writeHead(200,{'Content-Type':'image/svg+xml'});res.end('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="2600"><rect width="800" height="2600" fill="#c4d0d9"/></svg>');},1400);return;}
   if(req.url.startsWith('/comic')){const n=req.url.includes('2')?2:1;res.writeHead(200,{'Content-Type':'image/svg+xml'});res.end(`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="2400"><rect width="800" height="2400" fill="${n===1?'#dad5cc':'#c4d0d9'}"/><path d="M0 800H800M0 1600H800" stroke="#333" stroke-width="8"/><text x="100" y="160" font-size="80">PAGE ${n}</text><text x="100" y="1200" font-size="80">HALFWAY</text><text x="100" y="2300" font-size="80">END</text></svg>`);return;}
   res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
@@ -47,6 +54,28 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.querySelector('#page-turner-layer')?.shadowRoot.querySelector('.reader img')?.src.includes('/slow.svg'),null,{timeout:7000});
     check((await status()).y===0,'delayed AJAX image starts at the top after it loads');await command('pt:pause');
     await page.goto(base+'/reader');await command('pt:start',{...options,focus:false,mode:'tap'});await page.evaluate(()=>scrollTo(0,1000));await page.waitForFunction(()=>window.turns===1);await page.waitForTimeout(800);check(await page.evaluate(()=>scrollY)===0,'original-page mode also resets after AJAX turns');await command('pt:pause');
+    await page.goto(base+'/identity');await command('pt:start',{...options,mode:'tap'});
+    await page.waitForURL('**/identity?page=2');await page.waitForSelector('#page-turner-layer .reader img');
+    check(await page.locator('#page-turner-layer .reader img').getAttribute('src')===base+'/comic2.svg','full navigation waits for the known main image instead of showing a large wallpaper or placeholder');
+    check((await status()).y===0,'delayed main image starts from the top');await command('pt:pause');
+    await page.goto(base+'/reader');await command('pt:start',{...options,mode:'scroll',kind:'whole',duration:3});
+    const motion=await page.evaluate(()=>new Promise(resolve=>{
+      const rows=[];let start;
+      function sample(now){const layer=document.querySelector('#page-turner-layer')?.shadowRoot,r=layer?.querySelector('.reader'),note=layer?.querySelector('.note')?.textContent||'';
+        if(note.startsWith('Scrolling')){start??=now;rows.push({ms:now-start,y:r.scrollTop});}
+        else if(start!==undefined){resolve({rows,ms:now-start,y:r.scrollTop,max:r.scrollHeight-r.clientHeight});return;}
+        requestAnimationFrame(sample);
+      }requestAnimationFrame(sample);
+    }));
+    const speed=(lo,hi)=>{const rows=motion.rows.filter(r=>r.ms>=lo&&r.ms<=hi),a=rows[0],b=rows.at(-1);return (b.y-a.y)/(b.ms-a.ms);};
+    check(speed(100,350)<speed(1200,1700)*.65,'scroll starts gradually rather than jumping to cruising speed');
+    check(speed(2650,2890)<speed(1200,1700)*.65,'scroll slows down before the end rather than stopping at cruising speed');
+    check(motion.y===motion.max&&Math.abs(motion.ms-3000)<250,'easing reaches the intended end within the chosen duration');
+    fs.writeFileSync(path.join(work,'motion.json'),JSON.stringify(motion));await command('pt:pause');
+    await page.goto(base+'/identity?fail=1');await command('pt:start',{...options,mode:'tap'});
+    await page.waitForURL('**/identity?page=2&fail=1');
+    await page.waitForFunction(()=>document.querySelector('#page-turner-layer')?.shadowRoot.querySelector('.note')?.textContent==='Main image not found, choose it first',null,{timeout:18000});
+    check(!(await status()).focus,'missing main image pauses and restores the original page instead of scrolling a wallpaper');
     // Open the real extension popup document for layout checks in all shipped languages.
     const extensionId=new URL(worker.url()).host;const popup=await context.newPage();await popup.goto(`chrome-extension://${extensionId}/popup.html`);await popup.setViewportSize({width:340,height:850});
     for(const language of ['zh','en','ja']){await popup.locator('#more').click();await popup.locator('#language').selectOption(language);await popup.waitForTimeout(100);await popup.locator('#more').click();await popup.screenshot({path:path.join(work,`popup-${language}.png`)});check(await popup.locator('body').evaluate(e=>e.scrollWidth<=340),'popup does not overflow horizontally in '+language);check(await popup.locator('body').evaluate(e=>e.getBoundingClientRect().height<=600),'main popup fits browser height in '+language);}

@@ -10,9 +10,17 @@
   }
   function language(choice,preferences=['en']) { return words[choice]?choice:preferences.map(v=>String(v).split('-')[0]).find(v=>words[v])||'en'; }
   function target(y,max,kind) { return kind==='halves' && y<max/2-2?max/2:max; }
+  // Cosine velocity ramps join a steady middle section without a hard start or stop.
+  function glide(progress,duration=10) {
+    const p=Math.max(0,Math.min(1,progress)),ramp=Math.min(.22,2/Math.max(1,duration));
+    const edge=x=>(x-ramp/Math.PI*Math.sin(Math.PI*x/ramp))/(2*(1-ramp));
+    if(p<ramp)return edge(p);
+    if(p>1-ramp)return 1-edge(1-p);
+    return (p-ramp/2)/(1-ramp);
+  }
   function nextLabel(label) { return /^(next(?:\s+(?:page|image))?|下一[页頁张張]|下页|次のページ|次ページ|次の画像|次の写真|next[›»→]?)$/i.test(String(label||'').trim()); }
   function safeNext(url,base) { try { const next=new URL(url,base),current=new URL(base); return /^https?:$/.test(next.protocol)&&next.origin===current.origin&&next.href!==current.href?next.href:null; } catch { return null; } }
-  const api={words,settings,language,target,nextLabel,safeNext};
+  const api={words,settings,language,target,glide,nextLabel,safeNext};
   globalThis.PageTurnerCore=api;
   if(typeof module!=='undefined') module.exports=api;
 })();
