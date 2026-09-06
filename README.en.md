@@ -2,13 +2,13 @@
 
 [中文](README.md) · **English** · [日本語](README.ja.md)
 
-A minimal Android auto page turner
+A minimal auto page turner for Android and desktop browsers
 
 Read comics, image galleries or long web pages with timed taps and scrolls — touch the screen to pause
 
 Oh, and those times when your hands are busy… you know
 
-**[Download the APK](https://github.com/BsTso/page-turner-releases/releases/latest)** · [Report an issue](https://github.com/BsTso/page-turner-releases/issues) · [Build it yourself](BUILDING.md#build-on-windows)
+**[Android APK](https://github.com/BsTso/page-turner-releases/releases/latest)** · **[Desktop extension](https://github.com/BsTso/page-turner-releases/releases/latest/download/PageTurner-PC.zip)** · [Report an issue](https://github.com/BsTso/page-turner-releases/issues) · [Build it yourself](BUILDING.md#build-on-windows)
 
 <img src="docs/ui-example.jpg" width="300" alt="PageTurner interface in Chinese, with a large interval display and four reading modes">
 
@@ -21,9 +21,12 @@ Oh, and those times when your hands are busy… you know
 - Pauses after two turns with no detected page change, with an option to disable this check
 - Completely free, with no account or ads
 - Supports Chinese, English and Japanese, with an in-app language switch
+- Android can cover the area around the comic, while the desktop extension offers a clean image reader, restoring the original page on pause
 - Handy for reading and those hands-busy moments
 
 ## How to use it
+
+**Android**
 
 1. Download the APK and install it on your Android phone
 2. Follow the setup guide to enable the PageTurner accessibility service — no separate overlay permission is needed
@@ -33,6 +36,14 @@ Oh, and those times when your hands are busy… you know
 Touch or scroll the page yourself to pause, then tap the dot to resume
 
 Choose **All the way down** or **Pause halfway, then continue**, with 1–30 seconds per part; the large number sets the pause between parts and before turning the page
+
+Enable **Focus on the image** in settings to cover the area around a detected comic while running; pause restores the page, and no detection leaves it unchanged, this is not ad blocking
+
+**Desktop Chrome / Edge**
+
+Extract the desktop ZIP, turn on Developer mode in your browser’s extensions page, then use **Load unpacked** to select the extracted folder
+
+Open a comic page and start from the extension icon; the image-only reader is on by default, with manual image and next-button selection if needed, [full instructions](desktop/README.en.md)
 
 ## Languages
 
@@ -54,7 +65,7 @@ If page length is unavailable, try **All the way down**; if the bottom still can
 
 Fixed-position taps cannot distinguish ads or page pop-ups, and touch-to-pause behavior may vary by phone
 
-No screenshots or network access during reading, with a connection to GitHub only when you check for updates
+Android takes no screenshots or network requests during reading, connecting to GitHub only for update checks; the desktop reader displays images from the original site without uploading reading content, and the original page can still load ads or run scripts
 
 ## Help improve it
 

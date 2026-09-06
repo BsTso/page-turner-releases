@@ -2,13 +2,13 @@
 
 **中文** · [English](README.en.md) · [日本語](README.ja.md)
 
-极简的安卓自动翻页工具
+极简的自动翻页工具，支持安卓和电脑浏览器
 
 看漫画、图集或长网页时，按设定间隔点击或滑动，手动触屏就暂停
 
 对了，还有某些腾不出手的时候……你懂的
 
-**[下载安装包](https://github.com/BsTso/page-turner-releases/releases/latest)** · [反馈问题](https://github.com/BsTso/page-turner-releases/issues) · [自己编译](BUILDING.md)
+**[安卓版](https://github.com/BsTso/page-turner-releases/releases/latest)** · **[电脑扩展](https://github.com/BsTso/page-turner-releases/releases/latest/download/PageTurner-PC.zip)** · [反馈问题](https://github.com/BsTso/page-turner-releases/issues) · [自己编译](BUILDING.md)
 
 <img src="docs/ui-example.jpg" width="300" alt="轻翻页界面示例，大号秒数和四种翻页方式">
 
@@ -21,9 +21,12 @@
 - 连续两次没检测到页面变化时暂停，可关闭该项
 - 完全免费、不用注册、没广告
 - 支持中文、英文、日文，可在应用内切换
+- 安卓可遮住漫画周围，电脑扩展可用干净的图片阅读层，暂停后恢复原网页
 - 适合阅读，也适合暂时腾不出手的时候
 
 ## 怎么用
+
+**安卓**
 
 1. 下载 APK，在安卓手机上安装
 2. 按应用提示开启「轻翻页」无障碍服务，不用再开悬浮窗权限
@@ -33,6 +36,14 @@
 你手动点按或滑动页面时会暂停，轻点圆点就能继续
 
 慢滑可选「一次滑到底」或「滑到一半停，再滑到底」，每段用时可设为 1–30 秒，大号数字控制每段之间和翻页前的停顿
+
+右上角设置可开启「聚焦主体」，运行时遮住识别到的漫画周围，暂停后恢复，识别不到就保留原网页，这不是广告拦截
+
+**电脑 Chrome／Edge**
+
+解压电脑扩展，在浏览器扩展管理页开启「开发者模式」，点「加载已解压的扩展程序」选择解压目录
+
+打开漫画网页，点轻翻页扩展图标再开始；默认只看主体，选错时可手动选图片或下一页按钮，[详细说明](desktop/README.md)
 
 ## 语言
 
@@ -54,7 +65,7 @@
 
 固定位置点击无法判断广告和网页弹层，手动触屏暂停也会受手机系统影响
 
-不截屏，不联网，仅手动检查更新时会连接 GitHub
+安卓不截屏，阅读期间不联网，仅手动检查更新时连接 GitHub；电脑阅读层显示原站图片，不上传阅读内容，原网页仍可能加载广告和运行脚本
 
 ## 一起改进
 

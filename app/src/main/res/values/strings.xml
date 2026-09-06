@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="immersive">Focus on the image</string>
+    <string name="immersive_explanation">Cover the area around the main image while running and restore the page on pause, leave it unchanged if no image is detected</string>
     <string name="rest_interval">Pause between actions</string>
     <string name="slow_scroll">Slow scroll</string>
     <string name="scroll_page">All the way down</string>

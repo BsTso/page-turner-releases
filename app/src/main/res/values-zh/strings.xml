@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
+    <string name="immersive">聚焦主体</string>
+    <string name="immersive_explanation">运行时遮住漫画周围，暂停后恢复网页，无法识别主体时保留原样</string>
     <string name="rest_interval">停顿间隔</string>
     <string name="slow_scroll">慢滑</string>
     <string name="scroll_page">一次滑到底</string>

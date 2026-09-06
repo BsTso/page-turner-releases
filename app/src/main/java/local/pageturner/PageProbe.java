@@ -17,6 +17,24 @@ final class PageProbe {
         // Node identity survives browser toolbar resizing; bounds do not.
         return node.getWindowId()+":"+node.getViewIdResourceName()+":"+node.getClassName()+":"+node.hashCode();
     }
+    static Rect imageBounds(AccessibilityNodeInfo root,int width,int height) {
+        if(root==null) return null;
+        Rect best=null; long largest=0; int visited=0;
+        ArrayDeque<AccessibilityNodeInfo> queue=new ArrayDeque<>(); queue.add(AccessibilityNodeInfo.obtain(root));
+        while(!queue.isEmpty() && visited++<700) {
+            AccessibilityNodeInfo node=queue.remove(); String cls=String.valueOf(node.getClassName());
+            if(node.isVisibleToUser() && !node.isPassword() && cls.contains("Image")) {
+                Rect r=new Rect(); node.getBoundsInScreen(r);
+                if(r.intersect(0,0,width,height) && r.width()>=width*.35f && r.height()>=height*.2f) {
+                    long area=r.width()*1L*r.height();
+                    if(area>largest && area>width*1L*height*.12f) { best=new Rect(r); largest=area; }
+                }
+            }
+            addChildren(node,queue,visited); node.recycle();
+        }
+        while(!queue.isEmpty()) queue.remove().recycle();
+        return best;
+    }
     static Snapshot capture(AccessibilityNodeInfo root,int width,int height) {
         Snapshot result=new Snapshot(); if(root==null) return result;
         AccessibilityNodeInfo contentRoot=null, scrollRoot=null;

@@ -26,7 +26,7 @@ Android SDK 可通过 Android Studio 的 SDK Manager 安装上述两个组件
 
 脚本会编译源码、执行规则检查、打包并校验签名，安装包在 `dist` 下
 
-公开源码默认生成自己的 `development.keystore`，输出 `PageTurner-1.3-dev.apk`
+公开源码默认生成自己的 `development.keystore`，输出 `PageTurner-1.4-dev.apk`
 
 开发包和作者发布的安装包签名不同，不能直接覆盖安装，换装前请先记下自己的设置
 
@@ -57,9 +57,16 @@ Install JDK 17, Android SDK Platform 35 and Build-Tools 35.0.0, then run from th
 
 The script compiles the app, runs regression and translation checks, and signs the APK with your own development key
 
-Output: `dist/PageTurner-1.3-dev.apk`
+Output: `dist/PageTurner-1.4-dev.apk`
 
 A development APK cannot replace the author's APK because the signatures differ, and signing keys must never be committed
+
+## Desktop extension
+
+The desktop extension lives in `desktop/`, with no runtime dependencies
+To package it, install Node.js and run `./build-desktop.ps1` or pass `-NodePath` with the Node executable path
+This checks JavaScript and desktop rules, then writes `dist/PageTurner-PC.zip`
+`node tests/desktop-browser.cjs` runs isolated localhost integration tests when Playwright and its Chromium browser are installed, using a temporary extension copy with access to localhost only
 
 ## Adding a language / 言語の追加
 

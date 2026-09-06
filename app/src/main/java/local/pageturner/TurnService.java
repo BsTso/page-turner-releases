@@ -21,6 +21,25 @@ public class TurnService extends AccessibilityService {
     private TextView toggle;
     private LinearLayout panelHeader, panelRow;
     private Bubble bubble;
+    private FocusMask focusMask;
+    private boolean immersive;
+    private final Runnable focusTicker=new Runnable() {
+        public void run() {
+            if(!running || !immersive || !guard()) return;
+            AccessibilityNodeInfo root=getRootInActiveWindow(); Rect image;
+            try { image=PageProbe.imageBounds(root,screenWidth,screenHeight); } finally { if(root!=null) root.recycle(); }
+            if(image==null) { if(focusMask!=null) focusMask.setVisibility(View.GONE); }
+            else {
+                if(focusMask==null) {
+                    focusMask=new FocusMask();
+                    try { manager.addView(focusMask,overlay(-1,-1,true)); }
+                    catch(RuntimeException e) { focusMask=null; immersive=false; return; }
+                }
+                focusMask.image.set(image); focusMask.setVisibility(View.VISIBLE); focusMask.invalidate();
+            }
+            handler.postDelayed(this,busy?120:500);
+        }
+    };
     private boolean collapsed;
     private View picker, marker;
     private WindowManager.LayoutParams panelParams;
@@ -116,6 +135,8 @@ public class TurnService extends AccessibilityService {
     public void hidePanel() { pause(s(R.string.stopped)); phase=0; removePicker(); removeMarker(); if (panel != null) { manager.removeView(panel); panel=null; status=null; toggle=null; bubble=null; } }
     public void pause(String message) {
         running=false; busy=false; generation++; handler.removeCallbacks(ticker); reason=message;
+        handler.removeCallbacks(focusTicker);
+        if(focusMask!=null) { manager.removeView(focusMask); focusMask=null; }
         watching=false; progressWatch.clear(); missedTurns=0; clearScroll();
         if (panel != null) { panelParams.flags &= ~WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON; manager.updateViewLayout(panel,panelParams); }
         refreshPaused();
@@ -160,6 +181,16 @@ public class TurnService extends AccessibilityService {
             else c.drawCircle(cx,cy,dp(2),paint);
         }
     }
+    private class FocusMask extends View {
+        final Rect image=new Rect(); final Paint paint=new Paint();
+        FocusMask() { super(TurnService.this); setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO); paint.setColor(Color.BLACK); }
+        @Override protected void onDraw(Canvas canvas) {
+            int save=canvas.save(); int[] origin=new int[2]; getLocationOnScreen(origin);
+            canvas.clipOutRect(image.left-origin[0],image.top-origin[1],image.right-origin[0],image.bottom-origin[1]);
+            if(panel!=null) { int[] p=new int[2]; panel.getLocationOnScreen(p); canvas.clipOutRect(p[0]-origin[0]-dp(2),p[1]-origin[1]-dp(2),p[0]-origin[0]+panel.getWidth()+dp(2),p[1]-origin[1]+panel.getHeight()+dp(2)); }
+            canvas.drawPaint(paint); canvas.restoreToCount(save);
+        }
+    }
     private void startSession() {
         startSession(false);
     }
@@ -186,12 +217,14 @@ public class TurnService extends AccessibilityService {
         autoBottom=true; checkProgress=p.getBoolean("check_progress",true);
         watching=false; missedTurns=0; progressWatch.clear(); clearScroll();
         interval=p.getLong("interval",10000); smart=mode==3;
+        immersive=p.getBoolean("immersive",false);
         count=0; busy=false; running=true; generation++;
         due=SystemClock.uptimeMillis()+Math.max(3000,interval);
         stopAt=SystemClock.uptimeMillis()+p.getInt("minutes",30)*60000L;
         if (!guard()) return;
         panelParams.flags |= WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON; manager.updateViewLayout(panel,panelParams);
         toggle.setText(s(R.string.pause)); updateAppearance(); handler.removeCallbacks(ticker); handler.post(ticker);
+        handler.removeCallbacks(focusTicker); if(immersive) handler.post(focusTicker);
         final int token=generation; handler.postDelayed(() -> { if(running && token==generation) collapsePanel(); },700);
     }
     private boolean guard() {
