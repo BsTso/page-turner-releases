@@ -97,9 +97,13 @@ public class SetupActivity extends LocalizedActivity {
                 if(n==2) new AlertDialog.Builder(this).setTitle(s(R.string.reconnect_title))
                     .setMessage(s(R.string.reconnect_help,SetupAccess.label(this)))
                     .setPositiveButton(s(R.string.open_settings),(a,b) -> SetupAccess.settings(this)).setNegativeButton(s(R.string.back),null).show();
-                if(n==3) new AlertDialog.Builder(this).setTitle(s(R.string.battery_title))
-                    .setMessage(s(R.string.battery_help))
-                    .setPositiveButton(s(R.string.open_app_info),(a,b) -> SetupAccess.appInfo(this)).setNegativeButton(s(R.string.back),null).show();
+                if(n==3) {
+                    int current=SetupAccess.state(this);
+                    int title=current==SetupState.OFF?R.string.access_disabled_title:current==SetupState.CONNECTING?R.string.reconnect_title:current==SetupState.UNKNOWN?R.string.access_unknown_title:R.string.battery_title;
+                    String message=current==SetupState.OFF?(SetupAccess.previouslyGranted(this)?s(R.string.access_disabled_hint):s(R.string.setup_access_intro,SetupAccess.label(this))):current==SetupState.CONNECTING?s(R.string.reconnect_help,SetupAccess.label(this)):current==SetupState.UNKNOWN?s(R.string.access_unknown_hint):s(R.string.battery_help);
+                    new AlertDialog.Builder(this).setTitle(s(title)).setMessage(message)
+                        .setPositiveButton(s(R.string.access_settings),(a,b) -> SetupAccess.settings(this)).setNegativeButton(s(R.string.back),null).show();
+                }
             }).show();
     }
     private void disclosure() { new AlertDialog.Builder(this).setTitle(s(R.string.disclosure_title)).setMessage(s(R.string.disclosure_full)).setPositiveButton(s(R.string.ok),null).show(); }

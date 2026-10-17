@@ -63,7 +63,7 @@
     <string name="access_unknown_title">Check service status</string>
     <string name="access_unknown_hint">The system service status cannot be confirmed right now\nFor first use, enable PageTurner in Settings; if already enabled, wait and check again without granting permission repeatedly</string>
     <string name="access_disabled_title">Accessibility service is off</string>
-    <string name="access_disabled_hint">PageTurner was previously allowed, but its system service switch is now off\nRestore it in Accessibility settings; if it keeps turning off, check device-specific background management or why the service was disabled</string>
+    <string name="access_disabled_hint">PageTurner was previously allowed, but its system service switch is now off\nRestore it in Accessibility settings; if it turns off repeatedly after idle time or a restart, investigate the cause for your system version</string>
     <string name="setup_ready_intro">All set\nNow try the floating dot</string>
     <string name="setup_access_intro">Enable the %1$s accessibility service\nNo separate overlay permission is needed</string>
     <string name="setup_dot_visible">The dot is visible\nTap to start or pause, hold to expand</string>
@@ -80,7 +80,7 @@
     <string name="enable_access">Enable</string>
     <string name="reconnect_hint">Permission is still enabled, but Android has not reconnected; see recovery help if this continues</string>
     <string name="access_settings">Accessibility settings</string>
-    <string name="setup_stuck">Missing or disabled switch</string>
+    <string name="setup_stuck">Service or permission help</string>
     <string name="setup_disclosure_short">Reads the page and performs your chosen taps or scrolls\nPage content is not saved or uploaded</string>
     <string name="permission_details">What this permission does</string>
     <string name="see_solutions">Troubleshooting</string>
@@ -89,7 +89,7 @@
     <string name="missing_app">Cannot find %1$s</string>
     <string name="restricted_switch">Restricted settings or disabled switch</string>
     <string name="enabled_not_working">Enabled, but not working</string>
-    <string name="stops_working">Stops working after a while</string>
+    <string name="stops_working">Stops after idle time or a restart</string>
     <string name="find_app_title">Find %1$s</string>
     <string name="find_app_help">In Accessibility settings, look for Downloaded apps or Installed services, then choose %1$s\n\nThe names vary by phone</string>
     <string name="open_settings">Open Settings</string>
@@ -99,8 +99,8 @@
     <string name="open_app_info">Open App info</string>
     <string name="reconnect_title">Reconnect</string>
     <string name="reconnect_help">An enabled switch and a connected service are different; permission is not needed every time\n\nReturn to the app and wait first; if it remains disconnected, turn %1$s off and on once in Accessibility settings to ask Android to reconnect\n\nThe app cannot force recovery or guarantee that the service stays running</string>
-    <string name="battery_title">Only if it stops working</string>
-    <string name="battery_help">First check that the accessibility service is still on\n\nIf your phone keeps stopping PageTurner, allow background activity in its battery settings\n\nNo change is needed if it works normally</string>
+    <string name="battery_title">Stops after idle time or a restart</string>
+    <string name="battery_help">First check the accessibility service switch in Settings: if off, enable it again; if still on, wait for Android to connect\n\nOnly if the issue repeats after idle time or a restart, check system auto-start and background restrictions; available options depend on your system\n\nThese settings cannot guarantee that the service stays enabled; no adjustment is needed when it works normally</string>
     <string name="disclosure_title">What this permission does</string>
     <string name="disclosure_full">Reads the current page to find the next button and detect changes, then performs your chosen taps or scrolls\n\nNo screenshots are taken and page content is not saved or uploaded\nOnly checking for updates connects to GitHub\n\nEnabling permission does not start turning pages\nTap the dot or Start to begin\nTouch the screen to pause, or turn off the service in Android settings</string>
     <string name="ok">OK</string>

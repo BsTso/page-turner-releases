@@ -63,7 +63,7 @@
     <string name="access_unknown_title">サービスの状態を確認</string>
     <string name="access_unknown_hint">現在システムの状態を確認できません\n初回は設定で軽めくりを有効にしてください、有効になっていれば再許可せずに待ってから確認してください</string>
     <string name="access_disabled_title">ユーザー補助サービスがオフです</string>
-    <string name="access_disabled_hint">以前は許可されていましたが、現在システムのサービススイッチがオフです\nユーザー補助の設定で戻してください、繰り返す場合は端末のバックグラウンド管理や停止の原因を確認する必要があります</string>
+    <string name="access_disabled_hint">以前は許可されていましたが、現在システムのサービススイッチがオフです\nユーザー補助の設定で戻してください、放置や再起動後に繰り返しオフになる場合は、システムのバージョンに合わせて原因を確認してください</string>
     <string name="setup_ready_intro">準備ができました\n丸ボタンを表示してみましょう</string>
     <string name="setup_access_intro">「%1$s」のユーザー補助をオンにしてください\n別途オーバーレイの許可は不要です</string>
     <string name="setup_dot_visible">丸ボタンを表示しました\nタップで開始・一時停止、長押しでメニュー</string>
@@ -80,7 +80,7 @@
     <string name="enable_access">有効にする</string>
     <string name="reconnect_hint">許可は有効ですが接続されていません、続く場合は復旧方法を確認してください</string>
     <string name="access_settings">ユーザー補助の設定へ</string>
-    <string name="setup_stuck">見つからない・オンにできない</string>
+    <string name="setup_stuck">サービスや権限の問題</string>
     <string name="setup_disclosure_short">ページを読み取り、設定したタップやスクロールを実行します\nページの内容は保存・送信しません</string>
     <string name="permission_details">権限の用途を見る</string>
     <string name="see_solutions">解決方法を見る</string>
@@ -89,7 +89,7 @@
     <string name="missing_app">%1$sが見つからない</string>
     <string name="restricted_switch">制限付き設定・オンにできない</string>
     <string name="enabled_not_working">オンにしても使えない</string>
-    <string name="stops_working">しばらくすると動かなくなる</string>
+    <string name="stops_working">放置や再起動後に動かなくなる</string>
     <string name="find_app_title">%1$sを探す</string>
     <string name="find_app_help">ユーザー補助の設定で「ダウンロードしたアプリ」や「インストール済みサービス」を開き、%1$sを選んでください\n\n項目名は機種によって異なります</string>
     <string name="open_settings">設定を開く</string>
@@ -99,8 +99,8 @@
     <string name="open_app_info">アプリ情報を開く</string>
     <string name="reconnect_title">接続し直す</string>
     <string name="reconnect_help">スイッチが有効でもサービスが未接続の場合があります、毎回の再許可は不要です\n\nまずアプリに戻って待ってください、接続されない状態が続く場合はユーザー補助の設定で%1$sを一度オフにしてからオンにし、再接続を促してください\n\nアプリから強制的な復旧や常駐を保証することはできません</string>
-    <string name="battery_title">動かなくなる場合のみ</string>
-    <string name="battery_help">まずユーザー補助がオンになっているか確認してください\n\n端末が繰り返しアプリを停止する場合は、アプリ情報のバッテリー設定でバックグラウンド動作を許可してください\n\n問題なく使えていれば変更は不要です</string>
+    <string name="battery_title">放置や再起動後に動かなくなる</string>
+    <string name="battery_help">まず設定でユーザー補助サービスのスイッチを確認してください、オフなら有効に戻し、オンのままならシステムの接続を待ってください\n\n放置や再起動後に繰り返す場合に限り、自動起動やバックグラウンド制限を確認してください、項目はシステムによって異なります\n\nこれらの設定で常に有効な状態を保証できるわけではありません、正常に動く場合は変更不要です</string>
     <string name="disclosure_title">この権限の用途</string>
     <string name="disclosure_full">現在のページを読み取り、次ページや内容の変化を確認して、設定したタップやスクロールを実行します\n\nスクリーンショットは撮らず、ページの内容は保存・送信しません\n更新の確認時だけGitHubに接続します\n\n権限をオンにしても自動では始まりません\n丸ボタンか「開始」をタップしてください\n画面に触れると一時停止し、システム設定でサービスをオフにもできます</string>
     <string name="ok">わかりました</string>
