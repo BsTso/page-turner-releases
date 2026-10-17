@@ -15,11 +15,33 @@ final class SetupAccess {
     static int state(Context context) {
         AccessibilityManager manager=(AccessibilityManager)context.getSystemService(Context.ACCESSIBILITY_SERVICE);
         ComponentName ours=new ComponentName(context,TurnService.class);
-        boolean enabled=false;
-        if(manager!=null) for(AccessibilityServiceInfo info:manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)) {
-            if(ours.equals(ComponentName.unflattenFromString(info.getId()))) { enabled=true; break; }
+        boolean configured=false,readable=false,listed=false;
+        try {
+            String enabled=Settings.Secure.getString(context.getContentResolver(),Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+            configured=SetupState.containsService(enabled,ours.getPackageName(),ours.getClassName());
+            // Null can mean either an absent setting or a provider failure hidden by Android.
+            readable=enabled!=null;
+        } catch(RuntimeException ignored) { /* Restricted/unavailable provider: do not claim permission was revoked. */ }
+        // AOSP's "enabled" service API lists bound services, so it is only a fallback.
+        if(!readable && manager!=null) {
+            try {
+                java.util.List<AccessibilityServiceInfo> services=manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK);
+                if(services!=null) for(AccessibilityServiceInfo info:services) {
+                    if(info!=null && ours.equals(ComponentName.unflattenFromString(info.getId()))) { listed=true; break; }
+                }
+            } catch(RuntimeException ignored) { /* No readable status; preserve UNKNOWN below. */ }
         }
-        return SetupState.resolve(enabled,TurnService.instance!=null);
+        boolean connected=TurnService.instance!=null;
+        if(configured || connected) rememberGrant(context);
+        return SetupState.resolve(readable,configured,listed,connected);
+    }
+    static boolean previouslyGranted(Context context) {
+        SharedPreferences prefs=context.getSharedPreferences("settings",0);
+        return prefs.getBoolean("access_seen_granted",false) || prefs.getBoolean("setup_complete",false);
+    }
+    static void rememberGrant(Context context) {
+        SharedPreferences prefs=context.getSharedPreferences("settings",0);
+        if(!prefs.getBoolean("access_seen_granted",false)) prefs.edit().putBoolean("access_seen_granted",true).apply();
     }
     static void settings(Activity activity) {
         hide();

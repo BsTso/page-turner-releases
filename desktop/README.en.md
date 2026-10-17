@@ -18,11 +18,14 @@ Open a comic page, click the extension icon, choose your settings and click **St
 
 - The large number controls pauses; slow-scroll the full page or pause halfway, with 1–30 seconds per part
 - **Image only** uses a clean reader layer; turn it off to scroll the original page
+- For pages that turn when you click an image, use **Set position**, then click that position on the original page. This selects **Click saved position** and remembers the choice for that site
+- Saved positions use window proportions. They receive one click without button detection; set the position again if the site layout changes
+- After clicking, the reader waits for the next image and starts at the top. An unconfirmed turn pauses without another click; turn manually on the original page, then resume
 - New pages start at the top; pausing and resuming keeps your reading position
 - Scrolling eases in and out with a steady middle; it waits for the main image to load and pauses if it cannot find it
 - A gently breathing dot means running; a still dot means paused, and hovering shows the remaining seconds
 - Click, wheel, key input or switching tabs pauses; the dot resumes and × closes the controls
-- Use the dot at the top right to choose the main image or next-page button if automatic detection is wrong
+- Use the dot at the top right to choose the main image if needed. Select **Find next button** to use automatic button detection
 - Each session stops after 30 minutes; restart manually to continue
 - Chinese, English and Japanese, initially following the browser language
 
@@ -36,7 +39,7 @@ Tool-triggered navigation within the same site can continue; manual navigation o
 
 Halfway is half of the readable content’s scrollable distance, affected by loading and window size
 
-Settings stay local, reading sessions and selections are temporary, no content uploads, Cookie access or remote AI
+Settings and manual selections are saved locally per site; reading sessions are temporary, with no content uploads, Cookie access or remote AI
 
 This unpacked version needs manual updates: replace the folder contents with the new download, reload the extension and refresh your reading tab, with no store auto-updates
 

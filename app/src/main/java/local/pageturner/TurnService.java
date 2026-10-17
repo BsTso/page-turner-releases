@@ -51,6 +51,9 @@ public class TurnService extends AccessibilityService {
     private final ScrollWatch scrollWatch=new ScrollWatch();
     private float metricScale=1;
     private int metricBefore=-1;
+    private GestureDescription.StrokeDescription activeStroke;
+    private float activeStrokeX,activeStrokeY;
+    private long gestureId;
     private String target, homePackage = "";
     private int targetWindow, screenWidth, screenHeight, generation, count, rotation;
     private float pointX = .8f, pointY = .5f;
@@ -58,11 +61,13 @@ public class TurnService extends AccessibilityService {
     private long ownStart, ownEnd;
     private boolean autoBottom,checkProgress,watching;
     private final ProgressWatch progressWatch=new ProgressWatch();
-    private int missedTurns;
+    private String turnScrollKey;
+    private int turnFromY=-1;
     private String ownScrollKey;
     private long nextProbe;
     private String reason = "";
     private String panelLanguage;
+    private boolean receiverRegistered;
     private final BroadcastReceiver screenReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { pause(s(R.string.screen_off)); }
     };
@@ -83,12 +88,14 @@ public class TurnService extends AccessibilityService {
         }
     };
     @Override protected void onServiceConnected() {
+        super.onServiceConnected();
         manager = (WindowManager)getSystemService(WINDOW_SERVICE);
         Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
         ResolveInfo info = getPackageManager().resolveActivity(home, 0);
         if (info != null && info.activityInfo != null) homePackage = info.activityInfo.packageName;
-        registerReceiver(screenReceiver, new IntentFilter(Intent.ACTION_SCREEN_OFF));
+        if(!receiverRegistered) { registerReceiver(screenReceiver, new IntentFilter(Intent.ACTION_SCREEN_OFF)); receiverRegistered=true; }
         instance = this;
+        SetupAccess.rememberGrant(this);
         // Connecting or reconnecting never starts a session.
     }
     public boolean isPanelVisible() { return panel!=null && panel.isAttachedToWindow(); }
@@ -96,7 +103,7 @@ public class TurnService extends AccessibilityService {
         showPanel();
         // addView schedules attachment; do not treat the first layout delay as denial.
         if(panel==null) return false;
-        collapsePanel(); return true;
+        collapsePanel(); return panel!=null;
     }
     public void showPanel() {
         if(manager==null) return;
@@ -126,19 +133,21 @@ public class TurnService extends AccessibilityService {
         attachDrag(status,false); attachDrag(bubble,true);
         panel.setPadding(dp(8),dp(4),dp(8),dp(6)); panel.setBackground(Ui.shape(this,0xf51f2025,22));
         try { manager.addView(panel,panelParams); }
-        catch(WindowManager.BadTokenException | WindowManager.InvalidDisplayException | SecurityException e) {
+        catch(WindowManager.BadTokenException | WindowManager.InvalidDisplayException | SecurityException | IllegalArgumentException e) {
             panel=null; status=null; toggle=null; bubble=null; panelHeader=null; panelRow=null;
             Toast.makeText(this,s(R.string.panel_failed),Toast.LENGTH_LONG).show(); return;
         }
         collapsed=false; refreshPaused();
     }
-    public void hidePanel() { pause(s(R.string.stopped)); phase=0; removePicker(); removeMarker(); if (panel != null) { manager.removeView(panel); panel=null; status=null; toggle=null; bubble=null; } }
+    public void hidePanel() { pause(s(R.string.stopped)); phase=0; removePicker(); removeMarker(); if (panel != null) { removeOverlay(panel); panel=null; status=null; toggle=null; bubble=null; } }
     public void pause(String message) {
         running=false; busy=false; generation++; handler.removeCallbacks(ticker); reason=message;
+        releaseDrag();
         handler.removeCallbacks(focusTicker);
-        if(focusMask!=null) { manager.removeView(focusMask); focusMask=null; }
-        watching=false; progressWatch.clear(); missedTurns=0; clearScroll();
-        if (panel != null) { panelParams.flags &= ~WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON; manager.updateViewLayout(panel,panelParams); }
+        if(focusMask!=null) { removeOverlay(focusMask); focusMask=null; }
+        // Preserve a dispatched but unconfirmed turn across pause/resume.
+        watching=false; clearScroll();
+        if (panel != null) { panelParams.flags &= ~WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON; updatePanelLayout(); }
         refreshPaused();
     }
     private void refreshPaused() { if(status!=null) status.setText(reason); if(toggle!=null) toggle.setText(s(R.string.start)); updateAppearance(); }
@@ -147,15 +156,15 @@ public class TurnService extends AccessibilityService {
         if(panel==null || picker!=null) return;
         collapsed=true; panelHeader.setVisibility(View.GONE); panelRow.setVisibility(View.GONE); bubble.setVisibility(View.VISIBLE);
         panel.setPadding(0,0,0,0); panel.setBackgroundColor(Color.TRANSPARENT); panelParams.width=dp(44); panelParams.height=dp(44);
-        manager.updateViewLayout(panel,panelParams); updateAppearance(); clampPanel();
+        if(!updatePanelLayout()) return; updateAppearance(); clampPanel();
     }
     private void expandPanel() {
         if(panel==null) return;
         collapsed=false; bubble.setVisibility(View.GONE); panelHeader.setVisibility(View.VISIBLE); panelRow.setVisibility(View.VISIBLE);
         panel.setPadding(dp(8),dp(4),dp(8),dp(6)); panel.setBackground(Ui.shape(this,0xf51f2025,22)); panelParams.width=dp(244); panelParams.height=-2;
-        manager.updateViewLayout(panel,panelParams); clampPanel();
+        if(!updatePanelLayout()) return; clampPanel();
     }
-    private void clampPanel() { if(panel!=null) panel.post(() -> { if(panel==null) return; Point s=size(); panelParams.x=Math.max(0,Math.min(s.x-panel.getWidth(),panelParams.x)); panelParams.y=Math.max(dp(28),Math.min(s.y-panel.getHeight()-dp(28),panelParams.y)); manager.updateViewLayout(panel,panelParams); }); }
+    private void clampPanel() { if(panel!=null) panel.post(() -> { if(panel==null) return; Point s=size(); panelParams.x=Math.max(0,Math.min(s.x-panel.getWidth(),panelParams.x)); panelParams.y=Math.max(dp(28),Math.min(s.y-panel.getHeight()-dp(28),panelParams.y)); updatePanelLayout(); }); }
     private void attachDrag(View view,boolean isBubble) {
         view.setOnTouchListener(new View.OnTouchListener() {
             float x,y; int px,py; boolean moved,held,wasRunning;
@@ -163,7 +172,7 @@ public class TurnService extends AccessibilityService {
             public boolean onTouch(View v,MotionEvent e) {
                 if(panel==null) return true;
                 if(e.getAction()==MotionEvent.ACTION_DOWN) { wasRunning=running; if(running) pause(s(R.string.manual_paused)); x=e.getRawX(); y=e.getRawY(); px=panelParams.x; py=panelParams.y; moved=false; held=false; if(isBubble) handler.postDelayed(hold,650); return true; }
-                if(e.getAction()==MotionEvent.ACTION_MOVE) { if(Math.hypot(e.getRawX()-x,e.getRawY()-y)>dp(7)) { moved=true; handler.removeCallbacks(hold); } if(moved) { Point s=size(); panelParams.x=Math.max(0,Math.min(s.x-panel.getWidth(),px+(int)(e.getRawX()-x))); panelParams.y=Math.max(dp(28),Math.min(s.y-panel.getHeight()-dp(28),py+(int)(e.getRawY()-y))); manager.updateViewLayout(panel,panelParams); } return true; }
+                if(e.getAction()==MotionEvent.ACTION_MOVE) { if(Math.hypot(e.getRawX()-x,e.getRawY()-y)>dp(7)) { moved=true; handler.removeCallbacks(hold); } if(moved) { Point s=size(); panelParams.x=Math.max(0,Math.min(s.x-panel.getWidth(),px+(int)(e.getRawX()-x))); panelParams.y=Math.max(dp(28),Math.min(s.y-panel.getHeight()-dp(28),py+(int)(e.getRawY()-y))); updatePanelLayout(); } return true; }
                 if(e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL) { handler.removeCallbacks(hold); if(isBubble && ReadingRules.bubbleRelease(wasRunning,moved,held,e.getAction()==MotionEvent.ACTION_CANCEL)==ReadingRules.START) startSession(true); return true; }
                 return true;
             }
@@ -206,7 +215,11 @@ public class TurnService extends AccessibilityService {
         SharedPreferences p=getSharedPreferences("settings",0);
         Point s=size(); int nextMode=p.getInt("mode",p.getBoolean("smart",false)?3:0);
         int nextSteps=Math.max(1,Math.min(6,p.getInt("steps",2)));
-        if(!Rules.sameTarget(target,pkg,targetWindow,root.getWindowId(),screenWidth,screenHeight,s.x,s.y) || mode!=nextMode || steps!=nextSteps) phase=0;
+        boolean samePage=Rules.sameTarget(target,pkg,targetWindow,root.getWindowId(),screenWidth,screenHeight,s.x,s.y)
+            && rotation==manager.getDefaultDisplay().getRotation() && mode==nextMode;
+        boolean resumeTurn=samePage && progressWatch.hasPending();
+        if(!samePage || steps!=nextSteps) phase=0;
+        if(!resumeTurn) clearTurn();
         target=pkg; targetWindow=root.getWindowId(); root.recycle();
         screenWidth=s.x; screenHeight=s.y; rotation=manager.getDefaultDisplay().getRotation();
         String profile=ScreenProfiles.key(manager);
@@ -215,14 +228,15 @@ public class TurnService extends AccessibilityService {
         swipeDuration=Rules.swipeDuration(p.getLong("swipe_duration",10000));
         pointX=ScreenProfiles.get(p,profile,"x",.8f); pointY=ScreenProfiles.get(p,profile,"y",.5f);
         autoBottom=true; checkProgress=p.getBoolean("check_progress",true);
-        watching=false; missedTurns=0; progressWatch.clear(); clearScroll();
-        interval=p.getLong("interval",10000); smart=mode==3;
+        watching=resumeTurn; clearScroll();
+        interval=p.getLong("interval",10000); smart=ReadingRules.findNextButton(mode);
+        if(resumeTurn) { long now=SystemClock.uptimeMillis(); progressWatch.resume(now,interval); nextProbe=now+750; }
         immersive=p.getBoolean("immersive",false);
         count=0; busy=false; running=true; generation++;
         due=SystemClock.uptimeMillis()+Math.max(3000,interval);
         stopAt=SystemClock.uptimeMillis()+p.getInt("minutes",30)*60000L;
         if (!guard()) return;
-        panelParams.flags |= WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON; manager.updateViewLayout(panel,panelParams);
+        panelParams.flags |= WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON; if(!updatePanelLayout()) return;
         toggle.setText(s(R.string.pause)); updateAppearance(); handler.removeCallbacks(ticker); handler.post(ticker);
         handler.removeCallbacks(focusTicker); if(immersive) handler.post(focusTicker);
         final int token=generation; handler.postDelayed(() -> { if(running && token==generation) collapsePanel(); },700);
@@ -250,10 +264,11 @@ public class TurnService extends AccessibilityService {
         return true;
     }
     private void performTurn() {
-        if (!guard()) return;
+        if (busy || watching || !guard()) return;
         PageProbe.Snapshot before=snapshot();
-        if (smart) { clickNextNode(before,false); return; }
+        if (smart) { clickNextNode(before); return; }
         int bottom=scrollWatch.bottom(before.scrollKey,before.bottom);
+        before.bottom=bottom;
         if(mode==1 && bottom==ReadingRules.BOTTOM) { pause(s(R.string.reached_bottom)); expandPanel(); return; }
         boolean swipe=(mode==1 || mode==2) && bottom!=ReadingRules.BOTTOM;
         if(swipe) {
@@ -261,7 +276,8 @@ public class TurnService extends AccessibilityService {
             scrollPlan.locate(scrollWatch.position(),scrollWatch.maximum(),SystemClock.uptimeMillis());
             scrollPart(before); return;
         }
-        if(mode==2 && clickNextNode(before,true)) return;
+        // Scroll-then-turn always uses the saved point (right side by default).
+        // Button detection is a separate, explicitly selected mode.
         float x=screenWidth*pointX, y=screenHeight*pointY;
         float endY=y;
         if (pathHitsPanel(x,y,endY)) { pause(s(R.string.move_dot)); return; }
@@ -271,12 +287,14 @@ public class TurnService extends AccessibilityService {
         if(!guard()) return;
         ownScrollKey=null;
         ownStart=SystemClock.uptimeMillis(); ownEnd=ownStart+duration+250;
-        busy=true; busyAt=SystemClock.uptimeMillis(); busyUntil=busyAt+duration+3000; final int token=generation;
+        busy=true; busyAt=SystemClock.uptimeMillis(); busyUntil=busyAt+duration+3000;
+        final int token=generation; final long action=++gestureId;
+        prepareTurn(before);
         boolean accepted=dispatchGesture(gesture,new GestureResultCallback() {
-            @Override public void onCompleted(GestureDescription g) { if (running && token==generation) completed(swipe,before); }
-            @Override public void onCancelled(GestureDescription g) { if (token==generation) pause(s(R.string.gesture_interrupted)); }
+            @Override public void onCompleted(GestureDescription g) { if (currentGesture(token,action) && busy) completed(swipe,before); }
+            @Override public void onCancelled(GestureDescription g) { if (currentGesture(token,action)) pause(s(R.string.gesture_interrupted)); }
         },handler);
-        if (!accepted) pause(s(R.string.gesture_rejected));
+        if (!accepted && currentGesture(token,action)) { clearTurn(); pause(s(R.string.gesture_rejected)); }
     }
     private void scrollPart(PageProbe.Snapshot before) {
         if(!guard() || scrollPlan==null) return;
@@ -316,6 +334,7 @@ public class TurnService extends AccessibilityService {
         });
     }
     private void dragSegment(GestureDescription.StrokeDescription previous,float x,float from,float to,float current,long remaining,long total,int token,Runnable done) {
+        if(!running || token!=generation || !guard()) return;
         long slice=Math.min(250,remaining);
         float next=current+(to-current)*slice/remaining;
         // Cross touch slop promptly so very slow image drags do not become long presses.
@@ -329,25 +348,46 @@ public class TurnService extends AccessibilityService {
         Path path=new Path(); path.moveTo(x,current); path.lineTo(x,next);
         final float end=next; final long rest=remaining-slice;
         GestureDescription.StrokeDescription stroke=previous==null?new GestureDescription.StrokeDescription(path,0,slice,more):previous.continueStroke(path,0,slice,more);
+        activeStroke=stroke; activeStrokeX=x; activeStrokeY=end;
+        final long action=++gestureId;
         boolean accepted=dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(),new GestureResultCallback() {
             @Override public void onCompleted(GestureDescription g) {
-                if(!running || token!=generation || !guard()) {
-                    if(stroke.willContinue()) { Path up=new Path(); up.moveTo(x,end); dispatchGesture(new GestureDescription.Builder().addStroke(stroke.continueStroke(up,0,1,false)).build(),null,handler); }
-                    return;
-                }
+                if(!currentGesture(token,action) || activeStroke!=stroke) return;
+                if(!guard()) return;
+                if(activeStroke==stroke) activeStroke=null;
                 if(more) { ownEnd=SystemClock.uptimeMillis()+rest+1000; busyUntil=SystemClock.uptimeMillis()+rest+5000; dragSegment(stroke,x,from,to,end,rest,total,token,done); } else done.run();
             }
-            @Override public void onCancelled(GestureDescription g) { if(running && token==generation) pause(s(R.string.gesture_interrupted)); }
+            @Override public void onCancelled(GestureDescription g) {
+                if(!currentGesture(token,action) || activeStroke!=stroke) return;
+                if(activeStroke==stroke) activeStroke=null;
+                pause(s(R.string.gesture_interrupted));
+            }
         },handler);
-        if(!accepted) pause(s(R.string.gesture_rejected));
+        if(!accepted && currentGesture(token,action)) { activeStroke=null; pause(s(R.string.gesture_rejected)); }
+    }
+    private boolean currentGesture(int token,long action) { return running && token==generation && action==gestureId; }
+    private void releaseDrag() {
+        GestureDescription.StrokeDescription stroke=activeStroke; activeStroke=null;
+        if(stroke==null || !stroke.willContinue()) return;
+        // The pause action releases its own stroke; old callbacks never inject into a new session.
+        Path up=new Path(); up.moveTo(activeStrokeX,activeStrokeY);
+        try { dispatchGesture(new GestureDescription.Builder().addStroke(stroke.continueStroke(up,0,1,false)).build(),null,handler); }
+        catch(IllegalArgumentException | IllegalStateException | SecurityException ignored) { /* Android already ended the connection/stroke. */ }
     }
     private void finishPass() {
         busy=false; count++; phase++; scrollPlan=null;
         due=SystemClock.uptimeMillis()+interval;
     }
     private void completed(boolean swipe,PageProbe.Snapshot before) {
+        if(!running || !busy) return;
+        gestureId++;
         busy=false; count++; phase=swipe?phase+1:0; long now=SystemClock.uptimeMillis(); due=now+interval;
-        if(!swipe) { clearScroll(); if(checkProgress) { progressWatch.begin(before.url,before.content,now,interval); watching=true; nextProbe=now+750; } }
+        if(!swipe) {
+            clearScroll();
+            if(progressWatch.hasPending()) {
+                watching=true; nextProbe=now+750;
+            }
+        }
     }
     private PageProbe.Snapshot snapshot() {
         AccessibilityNodeInfo root=getRootInActiveWindow();
@@ -355,16 +395,22 @@ public class TurnService extends AccessibilityService {
     }
     private void checkTurn(long now) {
         PageProbe.Snapshot current=snapshot(); nextProbe=now+750;
-        int result=progressWatch.observe(current.url,current.content,now);
+        int result=progressWatch.observe(current.url,current.content,current.viewport,current.bottom,current.bodyVisible,current.loading,now);
         if(result==ProgressWatch.WAIT) return;
-        watching=false; progressWatch.clear();
-        if(result==ProgressWatch.CHANGED) { missedTurns=0; due=Math.max(due,now+interval); }
-        else if(ReadingRules.stopAfterMisses(++missedTurns)) {
+        watching=false;
+        if(result==ProgressWatch.CHANGED) { clearTurn(); due=now+interval; }
+        else {
             pause(result==ProgressWatch.UNREADABLE?s(R.string.progress_unreadable):s(R.string.progress_unchanged)); expandPanel();
         }
     }
+    private void prepareTurn(PageProbe.Snapshot before) {
+        if(!ReadingRules.confirmTurn(mode,checkProgress)) return;
+        turnScrollKey=before.scrollKey; turnFromY=scrollWatch.position();
+        progressWatch.begin(before.url,before.content,before.viewport,before.bottom,mode==2,SystemClock.uptimeMillis(),interval);
+    }
+    private void clearTurn() { progressWatch.clear(); turnScrollKey=null; turnFromY=-1; }
     private void clearScroll() { ownScrollKey=null; scrollWatch.clear(); scrollPlan=null; metricScale=1; }
-    private boolean clickNextNode(PageProbe.Snapshot before,boolean optional) {
+    private boolean clickNextNode(PageProbe.Snapshot before) {
         AccessibilityNodeInfo root=getRootInActiveWindow();
         if (root == null) { pause(s(R.string.page_lost)); return true; }
         ArrayDeque<AccessibilityNodeInfo> queue=new ArrayDeque<>(); queue.add(root);
@@ -393,13 +439,16 @@ public class TurnService extends AccessibilityService {
         boolean truncated=!queue.isEmpty(); while(!queue.isEmpty()) queue.remove().recycle();
         if (truncated || matches.size()!=1) {
             for(AccessibilityNodeInfo n:matches.values()) n.recycle();
-            if(optional && !truncated && matches.isEmpty()) return false;
             pause(truncated ? s(R.string.page_complex) : matches.isEmpty() ? s(R.string.next_missing) : s(R.string.next_ambiguous)); return true;
         }
         AccessibilityNodeInfo n=matches.values().iterator().next();
         if (!guard()) { n.recycle(); return true; }
+        busy=true; busyAt=SystemClock.uptimeMillis(); busyUntil=busyAt+3000;
+        final int token=generation;
+        prepareTurn(before);
         boolean ok=n.refresh() && n.isEnabled() && n.isVisibleToUser() && n.performAction(AccessibilityNodeInfo.ACTION_CLICK); n.recycle();
-        if (ok) completed(false,before); else pause(s(R.string.button_failed));
+        if(!running || token!=generation) return true;
+        if (ok) completed(false,before); else { clearTurn(); pause(s(R.string.button_failed)); }
         return true;
     }
     private void pickPoint() {
@@ -421,17 +470,32 @@ public class TurnService extends AccessibilityService {
                 removePicker(); showMarker(x,y); pause(s(R.string.pick_saved)); return true;
             } return true;
         });
-        picker=surface; manager.addView(picker,overlay(-1,-1,false));
+        picker=surface;
+        try { manager.addView(picker,overlay(-1,-1,false)); }
+        catch(WindowManager.BadTokenException | WindowManager.InvalidDisplayException | SecurityException | IllegalArgumentException e) { picker=null; pause(s(R.string.panel_failed)); }
     }
     private void showMarker(float x,float y) {
         TextView cross=new TextView(this); cross.setText("⊕"); cross.setTextSize(30); cross.setGravity(Gravity.CENTER); cross.setTextColor(Ui.INK); cross.setBackground(Ui.shape(this,0xccffffff,20));
         WindowManager.LayoutParams p=overlay(dp(40),dp(40),true); p.x=(int)x-dp(20); p.y=(int)y-dp(20);
-        marker=cross; manager.addView(marker,p);
+        marker=cross;
+        try { manager.addView(marker,p); }
+        catch(WindowManager.BadTokenException | WindowManager.InvalidDisplayException | SecurityException | IllegalArgumentException e) { marker=null; Toast.makeText(this,s(R.string.panel_failed),Toast.LENGTH_LONG).show(); }
     }
     private boolean insidePanel(float x,float y) { if(panel==null) return false; int[] pos=new int[2]; panel.getLocationOnScreen(pos); return x>=pos[0] && x<=pos[0]+panel.getWidth() && y>=pos[1] && y<=pos[1]+panel.getHeight(); }
     private boolean pathHitsPanel(float x,float y,float endY) { if(panel==null) return false; int[] pos=new int[2]; panel.getLocationOnScreen(pos); return x>=pos[0] && x<=pos[0]+panel.getWidth() && Math.max(y,endY)>=pos[1] && Math.min(y,endY)<=pos[1]+panel.getHeight(); }
-    private void removePicker() { if(picker!=null) { manager.removeView(picker); picker=null; } }
-    private void removeMarker() { if(marker!=null) { manager.removeView(marker); marker=null; } }
+    private void removePicker() { if(picker!=null) { removeOverlay(picker); picker=null; } }
+    private void removeMarker() { if(marker!=null) { removeOverlay(marker); marker=null; } }
+    private void removeOverlay(View view) {
+        if(view!=null && manager!=null) try { manager.removeView(view); } catch(IllegalArgumentException | SecurityException ignored) {}
+    }
+    private boolean updatePanelLayout() {
+        if(panel==null || manager==null) return false;
+        try { manager.updateViewLayout(panel,panelParams); return true; }
+        catch(WindowManager.BadTokenException | WindowManager.InvalidDisplayException | IllegalArgumentException | SecurityException e) {
+            releaseDrag(); clearOverlays(); reason=s(R.string.panel_failed);
+            Toast.makeText(this,reason,Toast.LENGTH_LONG).show(); return false;
+        }
+    }
     private Point size() { Point p=new Point(); manager.getDefaultDisplay().getRealSize(p); return p; }
     private WindowManager.LayoutParams overlay(int w,int h,boolean pass) {
         int flags=WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN;
@@ -447,24 +511,44 @@ public class TurnService extends AccessibilityService {
     @Override public void onAccessibilityEvent(AccessibilityEvent e) {
         if(!running || !guard()) return;
         if(e.getEventType()==AccessibilityEvent.TYPE_VIEW_SCROLLED && e.getWindowId()==targetWindow && e.getPackageName()!=null && target.equals(e.getPackageName().toString())) {
-            // Accept metrics from the main scroller only, during our own swipe.
             long now=SystemClock.uptimeMillis();
-            if(now<ownStart || now>ownEnd+500) return;
             AccessibilityNodeInfo source=e.getSource(); if(source==null) return;
             String key=PageProbe.nodeKey(source); source.recycle();
+            // A real return to the top can confirm image-only pages without accessible labels.
+            if(progressWatch.hasPending() && key.equals(turnScrollKey)) progressWatch.recordScrollReset(turnFromY,e.getScrollY(),e.getMaxScrollY());
+            // Slow-scroll metrics still belong only to our own swipe and the main scroller.
+            if(now<ownStart || now>ownEnd+500) return;
             if(key.equals(ownScrollKey)) {
                 scrollWatch.metric(key,e.getScrollY(),e.getMaxScrollY());
             }
         }
     }
     @Override public void onInterrupt() { pause(s(R.string.service_interrupted)); }
+    @Override public boolean onUnbind(Intent intent) {
+        disconnectService();
+        return super.onUnbind(intent);
+    }
+    private void disconnectService() {
+        // Clear identity first: cleanup failure must never leave a disconnected service marked ready.
+        if(instance==this) instance=null;
+        clearOverlays();
+    }
+    private void clearOverlays() {
+        running=false; busy=false; watching=false; generation++; activeStroke=null;
+        handler.removeCallbacksAndMessages(null); clearScroll();
+        // Android may already have detached accessibility overlays while unbinding.
+        for(View view:new View[]{picker,marker,focusMask,panel}) removeOverlay(view);
+        picker=null; marker=null; focusMask=null; panel=null; status=null; toggle=null;
+        bubble=null; panelHeader=null; panelRow=null;
+    }
     @Override public void onConfigurationChanged(Configuration c) {
         if(panel!=null && !Languages.tag(this).equals(panelLanguage)) { super.onConfigurationChanged(c); hidePanel(); return; }
         super.onConfigurationChanged(c); pause(s(R.string.layout_changed)); removePicker(); removeMarker();
-        if(panel!=null) { panelParams.x=dp(10); panelParams.y=dp(48); manager.updateViewLayout(panel,panelParams); }
+        if(panel!=null) { panelParams.x=dp(10); panelParams.y=dp(48); updatePanelLayout(); }
     }
     @Override public void onDestroy() {
-        hidePanel(); handler.removeCallbacksAndMessages(null); try { unregisterReceiver(screenReceiver); } catch(IllegalArgumentException ignored) {}
-        instance=null; super.onDestroy();
+        disconnectService();
+        if(receiverRegistered) { try { unregisterReceiver(screenReceiver); } catch(IllegalArgumentException ignored) {} receiverRegistered=false; }
+        if(instance==this) instance=null; super.onDestroy();
     }
 }

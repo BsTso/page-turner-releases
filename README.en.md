@@ -18,7 +18,7 @@ Oh, and those times when your hands are busy… you know
 - Slowly scrolls to the bottom in one pass or two parts with a pause halfway, then optionally turns the page
 - Provides a floating dot: tap to start or pause, hold for controls, drag to move
 - Remembers tap positions for different foldable screen sizes
-- Pauses after two turns with no detected page change, with an option to disable this check
+- Waits for the next page to settle and pauses without retrying an unconfirmed click; scroll-then-turn always uses this protection
 - Completely free, with no account or ads
 - Supports Chinese, English and Japanese, with an in-app language switch
 - Android can cover the area around the comic, while the desktop extension offers a clean image reader, restoring the original page on pause
@@ -35,7 +35,11 @@ Oh, and those times when your hands are busy… you know
 
 Touch or scroll the page yourself to pause, then tap the dot to resume
 
+Reopening distinguishes an enabled service that is reconnecting, a disabled service and unavailable status. An enabled service waits for reconnection; if the system switch is actually off, restore it in system settings. The app does not change that switch itself
+
 Choose **All the way down** or **Pause halfway, then continue**, with 1–30 seconds per part; the large number sets the pause between parts and before turning the page
+
+At the bottom, scroll-then-turn taps your saved position once and waits for the new page. Pausing and resuming during that wait does not tap again
 
 Enable **Focus on the image** in settings to cover the area around a detected comic while running; pause restores the page, and no detection leaves it unchanged, this is not ad blocking
 
@@ -43,7 +47,7 @@ Enable **Focus on the image** in settings to cover the area around a detected co
 
 Extract the desktop ZIP, turn on Developer mode in your browser’s extensions page, then use **Load unpacked** to select the extracted folder
 
-Open a comic page and start from the extension icon; the image-only reader is on by default, with manual image and next-button selection if needed, [full instructions](desktop/README.en.md)
+Open a comic page and the extension. If clicking the image turns the page, choose **Set position**, then click the image; the position is remembered for that site. Image-only reading is on by default, [full instructions](desktop/README.en.md)
 
 ## Languages
 

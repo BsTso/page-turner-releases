@@ -4,6 +4,13 @@
   let config=C.settings(),running=false,generation=0,stopAt=0,timer=0,stopTimer=0,animation=0,reader=null,originalOverflow='',originalPriority='',navigating=false;
   let chosenImage=null,chosenNext=null,picking=null,hints={},message='',savedReader=null,readerSources=[];
   let pulse=0,phaseEnd=0,phaseStarted=0;
+  let sessionId='',lastResumeId='',readerSignature='',pendingTurn=null;
+  const profileKey='site:'+location.origin;
+  const profileReady=chrome.storage.local.get(profileKey).then(data=>{
+    const profile=data[profileKey];if(!profile)return;
+    hints={...profile.hints};config=C.settings({...config,turnMethod:profile.turnMethod});
+  }).catch(()=>{});
+  function saveProfile(){return chrome.storage.local.set({[profileKey]:{turnMethod:config.turnMethod,hints:{image:hints.image,next:hints.next,point:hints.point}}}).catch(()=>{});}
   const host=document.createElement('div'); host.id='page-turner-layer';
   host.style.cssText='all:initial!important;position:fixed!important;inset:0!important;z-index:2147483647!important;pointer-events:none!important';
   const shadow=host.attachShadow({mode:'open'});
@@ -39,7 +46,8 @@
     pulse=requestAnimationFrame(breathe);
   }
   function phase(key,seconds=0){show(key);phaseStarted=performance.now();phaseEnd=phaseStarted+seconds*1000;}
-  function state(extra={}){return chrome.runtime.sendMessage({type:'pt:state',running,settings:config,hints,...extra}).catch(()=>{});}
+  function state(extra={}){return chrome.runtime.sendMessage({type:'pt:state',running,sessionId,settings:config,hints,...extra}).catch(()=>{});}
+  async function syncState(token,extra={}){const result=await state(extra);if(!guard(token))return false;if(result?.ok!==true){pause('failed');return false;}return true;}
   function visible(node){const r=node.getBoundingClientRect(),s=getComputedStyle(node);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden';}
   function query(selector){try{return selector?document.querySelector(selector):null;}catch{return null;}}
   function selector(node){if(node.id)return '#'+CSS.escape(node.id);const parts=[];for(let n=node;n&&n!==document.body&&parts.length<6;n=n.parentElement){const tag=n.localName;if(!tag)break;const peers=Array.from(n.parentElement?.children||[]).filter(e=>e.localName===tag);parts.unshift(tag+':nth-of-type('+(peers.indexOf(n)+1)+')');}return parts.join(' > ');}
@@ -67,30 +75,37 @@
   }
   function removeReader(){
     if(!reader)return;
-    const y=reader.scrollTop,max=Math.max(0,reader.scrollHeight-reader.clientHeight),sig=fingerprint(),pageTop=originalPosition(y);
+    const y=reader.scrollTop,max=Math.max(0,reader.scrollHeight-reader.clientHeight),sig=readerSignature,pageTop=fingerprint()===sig?originalPosition(y):0;
     reader.remove();reader=null;if(originalOverflow)document.documentElement.style.setProperty('overflow',originalOverflow,originalPriority);else document.documentElement.style.removeProperty('overflow');
     readerSources=[];window.scrollTo({top:pageTop,behavior:'instant'});
     savedReader={y,max,sig,pageY:scrollY};
   }
-  async function focusImages(token,reset=false){
+  async function focusImages(token,reset=false,deadline=Date.now()+15000){
     if(!config.focus)return true;
-    const images=imageCandidates();if(!images.length){pause('noImage');return false;}
+    let images=imageCandidates();
+    while(!images.length&&guard(token)&&Date.now()<deadline){await new Promise(resolve=>setTimeout(resolve,250));images=imageCandidates();}
+    if(!guard(token))return false;
+    if(!images.length){pause('noImage');return false;}
+    const requestedSignature=location.href+'|'+images.map(source=>source.currentSrc||source.src).join('|');
     const frame=document.createElement('div');frame.className='reader';frame.setAttribute('aria-label',t().focus);
     const sources=[];
     const loaded=images.map(source=>new Promise(resolve=>{
       const image=document.createElement('img'),url=source.currentSrc||source.src;
-      image.alt='';image.referrerPolicy=source.referrerPolicy;image.src=url;frame.append(image);sources.push({source,copy:image});
+      image.alt='';image.referrerPolicy=source.referrerPolicy;image.src=url;frame.append(image);sources.push({source,copy:image,url});
       const timeout=setTimeout(()=>resolve(false),10000);
       image.decode().then(()=>{clearTimeout(timeout);resolve(image.naturalWidth>=240&&image.naturalHeight>=200&&source.isConnected&&(source.currentSrc||source.src)===url);},()=>{clearTimeout(timeout);resolve(false);});
     }));
     const ok=(await Promise.all(loaded)).every(Boolean);
     if(!running||token!==generation)return false;
-    if(!ok){pause('loading');return false;}
+    if(!ok||!sources.every(({source,url})=>source.isConnected&&(source.currentSrc||source.src)===url)||fingerprint()!==requestedSignature){
+      if(Date.now()<deadline){await new Promise(resolve=>setTimeout(resolve,250));if(!guard(token))return false;return focusImages(token,reset,deadline);}
+      pause('loading');return false;
+    }
     if(!reader){originalOverflow=document.documentElement.style.getPropertyValue('overflow');originalPriority=document.documentElement.style.getPropertyPriority('overflow');document.documentElement.style.setProperty('overflow','hidden','important');}
-    reader?.remove();reader=frame;readerSources=sources;shadow.prepend(reader);
+    reader?.remove();reader=frame;readerSources=sources;readerSignature=requestedSignature;shadow.prepend(reader);
     if(!hints.image)hints.autoImage=selector(images[0]);
     const first=readerSources[0];
-    frame.scrollTop=reset?0:savedReader&&savedReader.sig===fingerprint()&&Math.abs(scrollY-savedReader.pageY)<3?savedReader.y:Math.max(0,(scrollY-sourceTop())*first.copy.height/Math.max(1,first.source.getBoundingClientRect().height));
+    frame.scrollTop=reset||savedReader&&savedReader.sig!==readerSignature?0:savedReader&&Math.abs(scrollY-savedReader.pageY)<3?savedReader.y:Math.max(0,(scrollY-sourceTop())*first.copy.height/Math.max(1,first.source.getBoundingClientRect().height));
     return true;
   }
   function scroller(){return reader||document.scrollingElement;}
@@ -98,30 +113,48 @@
   function maximum(){const s=scroller();return Math.max(0,(s?.scrollHeight||0)-(reader?reader.clientHeight:innerHeight));}
   function move(y){if(reader)reader.scrollTop=y;else window.scrollTo({top:y,behavior:'instant'});}
   function pause(reason='',notify=true){running=false;navigating=false;generation++;clearTimeout(timer);clearTimeout(stopTimer);cancelAnimationFrame(animation);cancelAnimationFrame(pulse);core.style.transform='none';removeReader();show(reason);if(notify)state();}
-  async function start(value=config,resumeStopAt=null,resumeHints=null,reset=false){
-    pause('',false);mount();config=C.settings(value);if(resumeHints)hints=resumeHints;
-    running=true;generation++;stopAt=resumeStopAt||Date.now()+1800000;const token=generation;
+  async function start(value=config,resumeStopAt=null,resumeHints=null,reset=false,resumeSessionId=null,resumeId=null){
+    if(resumeSessionId&&sessionId&&resumeSessionId!==sessionId)return;
+    if(resumeId&&lastResumeId===resumeId)return;
+    if(resumeId)lastResumeId=resumeId;
+    pause('',false);cancelPick();mount();const token=++generation;
+    await profileReady;if(token!==generation)return;
+    config=C.settings(value);if(resumeHints)hints={...hints,...resumeHints};
+    sessionId=resumeSessionId||crypto.randomUUID();
+    running=true;stopAt=resumeStopAt||Date.now()+1800000;
     if(document.hidden||Date.now()>=stopAt){pause('switched');return;}
     stopTimer=setTimeout(()=>pause('limit'),Math.max(0,stopAt-Date.now()));
     phase('loading');pulse=requestAnimationFrame(breathe);
+    if(!await syncState(token,{begin:!resumeSessionId}))return;
+    await saveProfile();if(!guard(token))return;
+    if(config.mode!=='scroll'&&config.turnMethod==='point'&&!validPoint(hints.point)){pause('noPoint');return;}
+    if(pendingTurn&&!reset){navigating=true;phase('turning');if(await syncState(token,{pendingTurn:true,turnId:pendingTurn.id,expected:pendingTurn.expected}))observeTurn(token,pendingTurn);return;}
+    if(reset)pendingTurn=null;
     if(reset){savedReader=null;move(0);}
-    if(reset&&config.focus){const until=Date.now()+15000;while(guard(token)&&!imageCandidates().length&&Date.now()<until)await new Promise(resolve=>setTimeout(resolve,250));if(!guard(token))return;}
     if(!await focusImages(token,reset))return;
-    if(!running||token!==generation)return;show('waiting');await state();schedule(token);
+    if(!running||token!==generation)return;show('waiting');if(await syncState(token))schedule(token);
   }
-  function schedule(token){clearTimeout(timer);if(!running||token!==generation)return;phase('waiting',config.interval);timer=setTimeout(()=>act(token),config.interval*1000);}
+  function schedule(token){if(!running||token!==generation||navigating)return;clearTimeout(timer);phase('waiting',config.interval);timer=setTimeout(()=>act(token),config.interval*1000);}
   function guard(token){if(!running||token!==generation)return false;if(document.hidden){pause('switched');return false;}if(Date.now()>=stopAt){pause('limit');return false;}return true;}
+  function refreshChangedReader(token){
+    if(!reader||!config.focus||fingerprint()===readerSignature)return false;
+    // Some readers replace a preview after the first image has already settled.
+    // Read that replacement from the top before authorizing another page turn.
+    const attempt={id:crypto.randomUUID(),expected:null,before:readerSignature,previousImages:readerSources.map(({source,copy})=>({node:source,src:copy.src}))};
+    pendingTurn=attempt;navigating=true;clearTimeout(timer);phase('loading');observeTurn(token,attempt);return true;
+  }
   async function act(token){
-    if(!guard(token))return;
+    if(!guard(token)||navigating)return;
+    if(refreshChangedReader(token))return;
     if(config.mode==='tap')return turn(token);
     const max=maximum();
     if(position()>=max-2){if(config.mode==='scroll'){pause('ended');return;}return turn(token);}
-    const from=position(),target=C.target(from,max,config.kind),fraction=target<max?0.5:1,started=performance.now();phase('reading',config.duration);
-    const animate=now=>{if(!guard(token))return;const ratio=Math.min(1,(now-started)/(config.duration*1000));const goal=maximum()*fraction;move(from+(goal-from)*C.glide(ratio,config.duration));if(ratio<1)animation=requestAnimationFrame(animate);else schedule(token);};
+    const from=position(),target=C.target(from,max,config.kind),fraction=target<max?0.5:1,started=performance.now();let nextImageCheck=0;phase('reading',config.duration);
+    const animate=now=>{if(!guard(token))return;if(now>=nextImageCheck){nextImageCheck=now+250;if(refreshChangedReader(token))return;}const ratio=Math.min(1,(now-started)/(config.duration*1000));const goal=maximum()*fraction;move(from+(goal-from)*C.glide(ratio,config.duration));if(ratio<1)animation=requestAnimationFrame(animate);else schedule(token);};
     animation=requestAnimationFrame(animate);
   }
   function nextButton(){
-    const picked=chosenNext?.isConnected?chosenNext:query(hints.next);
+    const picked=hints.point?null:chosenNext?.isConnected?chosenNext:query(hints.next);
     if(picked&&visible(picked)&&!picked.disabled)return picked;
     const matches=new Map();
     for(const node of document.querySelectorAll('a,button,[role="button"]')){
@@ -134,19 +167,45 @@
     }
     return matches.size===1?matches.values().next().value:null;
   }
+  function validPoint(point){return point&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=0&&point.x<=1&&point.y>=0&&point.y<=1;}
+  function pointTarget(point){
+    const x=Math.min(innerWidth-1,Math.max(0,point.x*innerWidth)),y=Math.min(innerHeight-1,Math.max(0,point.y*innerHeight));
+    const display=host.style.getPropertyValue('display'),priority=host.style.getPropertyPriority('display');
+    host.style.setProperty('display','none','important');
+    const node=document.elementFromPoint(x,y);
+    if(display)host.style.setProperty('display',display,priority);else host.style.removeProperty('display');
+    return {node,x,y};
+  }
   async function turn(token){
-    const next=nextButton();if(!next){pause('noNext');return;}
-    const href=next.closest('a')?.href,expected=href?C.safeNext(href,location.href):location.href;
-    if(href&&!expected){pause('noNext');return;}
-    const before=fingerprint(),previousImages=imageCandidates().map(i=>({node:i,src:i.currentSrc||i.src}));navigating=true;phase('turning');await state({expected});if(!guard(token))return;
-    next.click();const startTime=Date.now();let candidate='',stable=0;
+    if(!guard(token)||navigating||pendingTurn)return;
+    if(refreshChangedReader(token))return;
+    const point=config.turnMethod==='point';
+    if(point&&!validPoint(hints.point)){pause('noPoint');return;}
+    const target=point?pointTarget(hints.point):{node:nextButton()},next=target.node;
+    if(!next||next===document.documentElement||next.tagName==='IFRAME'){pause(point?'noPoint':'noNext');return;}
+    const href=next.closest('a')?.href,expected=href?C.safeNext(href,location.href):null;
+    if(href&&/^https?:/.test(href)&&new URL(href).origin!==location.origin){pause('noNext');return;}
+    if(!point&&href&&!expected){pause('noNext');return;}
+    const attempt={id:crypto.randomUUID(),expected,before:fingerprint(),previousImages:imageCandidates().map(i=>({node:i,src:i.currentSrc||i.src}))};
+    navigating=true;clearTimeout(timer);phase('turning');if(!await syncState(token,{pendingTurn:true,turnId:attempt.id,expected}))return;
+    // One click only. Loading, an unchanged page, or a resume never dispatches a retry.
+    pendingTurn=attempt;
+    if(point)next.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,composed:true,view:window,clientX:target.x,clientY:target.y,button:0,buttons:0,detail:1}));else next.click();
+    observeTurn(token,attempt);
+  }
+  function observeTurn(token,attempt){
+    const {before,previousImages}=attempt,startTime=Date.now();let candidate='',stable=0;
     const check=async()=>{
-      if(!guard(token))return;
+      if(!guard(token)||pendingTurn!==attempt)return;
       const current=fingerprint();
       const images=imageCandidates(),pending=previousImages.some(({node})=>node.isConnected&&!node.complete);
       const changedImage=images.some(i=>!previousImages.some(p=>p.src===(i.currentSrc||i.src)));
-      const ready=!pending&&(!config.focus||images.length>0&&(previousImages.length===0||changedImage));
-      if(current!==before&&ready){if(candidate!==current){candidate=current;stable=Date.now();}else if(Date.now()-stable>=500){navigating=false;await state();if(!guard(token))return;savedReader=null;if(!config.focus)move(0);if(await focusImages(token,true))schedule(token);return;}}
+      const ready=!pending&&(previousImages.length>0?images.length>0&&changedImage:!config.focus||images.length>0);
+      if(current!==before&&ready){if(candidate!==current){candidate=current;stable=Date.now();}else if(Date.now()-stable>=750){
+        savedReader=null;if(!config.focus)move(0);
+        if(!await focusImages(token,true)||!guard(token))return;
+        pendingTurn=null;navigating=false;if(await syncState(token,{pendingTurn:false,turnId:null,expected:null}))schedule(token);return;
+      }}
       else {candidate='';stable=0;}
       if(Date.now()-startTime>15000){pause('unchanged');return;}
       timer=setTimeout(check,250);
@@ -156,9 +215,9 @@
   let pickerLabel=null,pickerFrame=null;
   function cancelPick(){picking=null;pickerLabel?.remove();pickerFrame?.remove();pickerLabel=pickerFrame=null;}
   function pick(kind){pause();cancelPick();mount();picking=kind;pickerLabel=document.createElement('div');pickerLabel.className='picker';pickerLabel.textContent=t()[kind==='image'?'selectImage':'selectNext'];pickerFrame=document.createElement('div');pickerFrame.className='frame';shadow.append(pickerLabel,pickerFrame);}
-  function pickTarget(event){const element=event.composedPath().find(n=>n instanceof Element&&n!==host);return picking==='image'?(element?.closest('img')):element?.closest('a,button,[role="button"]');}
+  function pickTarget(event){const element=event.composedPath().find(n=>n instanceof Element&&n!==host);return picking==='image'?(element?.closest('img')):element;}
   document.addEventListener('pointermove',event=>{if(!picking)return;const selected=pickTarget(event);if(!selected){pickerFrame.style.display='none';return;}const r=selected.getBoundingClientRect();pickerFrame.style.cssText=`left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;},true);
-  document.addEventListener('click',event=>{if(!picking||event.composedPath().some(n=>n?.dataset?.ptUi))return;event.preventDefault();event.stopImmediatePropagation();const selected=pickTarget(event);if(!selected)return;if(picking==='image'){chosenImage=selected;hints.image=selector(selected);}else{chosenNext=selected;hints.next=selector(selected);}cancelPick();show('selected');},true);
+  document.addEventListener('click',event=>{if(!picking||event.composedPath().some(n=>n?.dataset?.ptUi))return;event.preventDefault();event.stopImmediatePropagation();const selected=pickTarget(event);if(!selected)return;if(picking==='image'){chosenImage=selected;hints.image=selector(selected);}else{chosenNext=selected;hints.next=selector(selected);hints.point={x:event.clientX/innerWidth,y:event.clientY/innerHeight};config.turnMethod='point';}pendingTurn=null;cancelPick();saveProfile();show('selected');},true);
   function intervention(event){
     if(!event.isTrusted)return;
     if(!running&&!picking)return;
@@ -173,7 +232,7 @@
   dot.onclick=()=>running?pause():start();close.onclick=()=>{cancelPick();pause();host.remove();};
   chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
     if(!msg||!String(msg.type).startsWith('pt:'))return;
-    (async()=>{if(msg.type==='pt:start')await start(msg.settings);else if(msg.type==='pt:resume')await start(msg.settings,msg.stopAt,msg.hints,true);else if(msg.type==='pt:pause')pause();else if(msg.type==='pt:pick-image'||msg.type==='pt:pick-next'){config=C.settings(msg.settings);pick(msg.type==='pt:pick-image'?'image':'next');}return {running,reason:t()[message]||''};})().then(reply,error=>{pause('failed');reply({error:error.message});});return true;
+    (async()=>{await profileReady;if(msg.type==='pt:start')await start(msg.settings);else if(msg.type==='pt:resume')await start(msg.settings,msg.stopAt,msg.hints,true,msg.sessionId,msg.resumeId);else if(msg.type==='pt:pause'){if(!msg.sessionId||msg.sessionId===sessionId)pause();}else if(msg.type==='pt:pick-image'||msg.type==='pt:pick-next'){config=C.settings(msg.settings);pick(msg.type==='pt:pick-image'?'image':'next');}return {running,settings:config,reason:t()[message]||''};})().then(reply,error=>{pause('failed');reply({error:error.message});});return true;
   });
   globalThis.__pageTurner={pause,start,images:imageCandidates,next:nextButton,status:()=>({running,message,reader:!!reader,y:position(),max:maximum()})};
 })();

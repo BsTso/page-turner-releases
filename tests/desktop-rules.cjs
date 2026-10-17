@@ -11,6 +11,7 @@ for(const duration of [1,10,30]){
   check(Math.abs(speed(.4)-speed(.6))<.00001,true);
 }
 check(C.settings().duration,10);check(C.settings({duration:999,interval:-1}).duration,30);check(C.settings({interval:-1}).interval,1);check(C.settings({interval:'oops'}).interval,10);check(C.settings({mode:'pay'}).mode,'combined');
+check(C.settings().turnMethod,'button');check(C.settings({turnMethod:'point'}).turnMethod,'point');check(C.settings({turnMethod:'button'}).turnMethod,'button');check(C.settings({turnMethod:'right'}).turnMethod,'button');
 check(C.language('system',['fr','ja-JP','en']), 'ja');check(C.language('zh',['ja']), 'zh');check(C.language('system',['fr']), 'en');
 for(const label of ['下一页','Next page','next','次のページ'])check(C.nextLabel(label),true);
 for(const label of ['next payment','下一步','付款','広告',''])check(C.nextLabel(label),false);

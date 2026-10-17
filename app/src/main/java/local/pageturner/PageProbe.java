@@ -12,6 +12,7 @@ final class PageProbe {
         String content, url, scrollKey, viewport;
         Rect scrollBounds;
         int bottom=ReadingRules.UNKNOWN;
+        boolean bodyVisible,loading;
     }
     static String nodeKey(AccessibilityNodeInfo node) {
         // Node identity survives browser toolbar resizing; bounds do not.
@@ -45,6 +46,7 @@ final class PageProbe {
             long area=Math.max(0,Math.min(width,r.right)-Math.max(0,r.left))*1L*Math.max(0,Math.min(height,r.bottom)-Math.max(0,r.top));
             if(node.isVisibleToUser() && !node.isPassword()) {
                 String id=node.getViewIdResourceName(),cls=String.valueOf(node.getClassName());
+                if(cls.contains("ProgressBar") && area>0) result.loading=true;
                 // Only browser address-bar IDs; never inspect general editable fields.
                 if(id!=null && (id.endsWith(":id/url_bar") || id.endsWith(":id/url") || id.endsWith(":id/address_bar"))) {
                     CharSequence value=node.getText();
@@ -73,7 +75,10 @@ final class PageProbe {
             scrollRoot.recycle();
         }
         if(contentRoot==null) contentRoot=AccessibilityNodeInfo.obtain(root);
-        if(!truncated) result.content=fingerprint(contentRoot);
+        if(!truncated) {
+            result.content=fingerprint(contentRoot);
+            result.bodyVisible=result.content!=null || imageBounds(contentRoot,width,height)!=null;
+        }
         contentRoot.recycle(); return result;
     }
     private static String viewportFingerprint(AccessibilityNodeInfo root,int width,int height) {

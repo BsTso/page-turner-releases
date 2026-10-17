@@ -23,10 +23,11 @@ public class MainActivity extends LocalizedActivity {
     }
     @Override public void onResume() {
         super.onResume(); render(); statusHandler.postDelayed(checkAccess,750);
-        if(!prefs.getBoolean("setup_seen",false)) {
+        boolean setupSeen=prefs.getBoolean("setup_seen",false);
+        if(!setupSeen) {
             prefs.edit().putBoolean("setup_seen",true).apply();
-            if(SetupAccess.state(this)!=SetupState.READY) permission();
         }
+        if(SetupState.shouldOpenSetup(setupSeen,lastAccess)) permission();
     }
     @Override public void onPause() { statusHandler.removeCallbacks(checkAccess); super.onPause(); }
     @Override public void onDestroy() { if(updateChecker!=null) updateChecker.cancel(); super.onDestroy(); }
@@ -71,9 +72,13 @@ public class MainActivity extends LocalizedActivity {
         if(mode==1 || mode==2) {
             gap(14); detail(s(R.string.slow_scroll),s(R.string.scroll_summary,s(prefs.getInt("scroll_kind",ScrollPlan.PAGE)==ScrollPlan.HALVES?R.string.scroll_halves_short:R.string.scroll_page_short),Rules.swipeDuration(prefs.getLong("swipe_duration",10000))/1000)).setOnClickListener(v -> editScroll());
         }
+        if(mode==2) { gap(10); body.addView(Ui.text(this,s(R.string.combined_hint),12,Ui.MUTED)); }
         gap(24);
         if(lastAccess!=SetupState.READY) {
-            TextView permission=Ui.action(this,lastAccess==SetupState.CONNECTING?s(R.string.finish_connecting):s(R.string.finish_setup),0xffffffff,Ui.INK); body.addView(permission,new LinearLayout.LayoutParams(-1,d(54))); permission.setOnClickListener(v -> permission());
+            boolean restore=SetupState.needsRestore(lastAccess,SetupAccess.previouslyGranted(this));
+            TextView permission=Ui.action(this,s(lastAccess==SetupState.CONNECTING?R.string.finish_connecting:lastAccess==SetupState.UNKNOWN?R.string.access_unknown_title:restore?R.string.access_settings:R.string.finish_setup),0xffffffff,Ui.INK); body.addView(permission,new LinearLayout.LayoutParams(-1,d(54))); permission.setOnClickListener(v -> permission());
+            if(lastAccess==SetupState.CONNECTING) { gap(10); body.addView(Ui.text(this,s(R.string.connection_wait_hint),12,Ui.MUTED)); }
+            if(restore) { gap(10); body.addView(Ui.text(this,s(R.string.access_disabled_hint),12,Ui.MUTED)); }
         } else {
             TextView show=Ui.action(this,s(R.string.show_dot),0xffffffff,Ui.INK); body.addView(show,new LinearLayout.LayoutParams(-1,d(54))); show.setOnClickListener(v -> {
                 TurnService service=TurnService.instance;
@@ -114,7 +119,8 @@ public class MainActivity extends LocalizedActivity {
         box.addView(duration,new LinearLayout.LayoutParams(-1,d(54)));
         LinearLayout.LayoutParams row=new LinearLayout.LayoutParams(-1,d(54)); row.topMargin=d(10); box.addView(visible,row);
         View check=settingRow(s(R.string.check_progress),prefs.getBoolean("check_progress",true)?s(R.string.on):s(R.string.off));
-        LinearLayout.LayoutParams checkRow=new LinearLayout.LayoutParams(-1,d(54)); checkRow.topMargin=d(10); box.addView(check,checkRow);
+        LinearLayout.LayoutParams checkRow=new LinearLayout.LayoutParams(-1,d(54)); checkRow.topMargin=d(10);
+        if(mode()!=2) box.addView(check,checkRow);
         View language=settingRow(s(R.string.language_label),Languages.name(this));
         LinearLayout.LayoutParams languageRow=new LinearLayout.LayoutParams(-1,d(54)); languageRow.topMargin=d(10); box.addView(language,languageRow);
         View focus=settingRow(s(R.string.immersive),prefs.getBoolean("immersive",false)?s(R.string.on):s(R.string.off));

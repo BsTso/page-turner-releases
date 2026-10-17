@@ -21,7 +21,8 @@
     <string name="turn_mode">翻页方式</string>
     <string name="mode_tap">点击翻页</string>
     <string name="mode_scroll">向下浏览</string>
-    <string name="mode_combined">滑动后翻页</string>
+    <string name="mode_combined">慢滑到底后翻页</string>
+    <string name="combined_hint">到底点击屏幕右侧，选点后使用保存位置\n每次只点一下，等新页就绪再慢滑；无法确认时暂停</string>
     <string name="mode_smart">识别下一页</string>
     <string name="swipe_distance">每次滑动</string>
     <string name="swipe_small">小幅 · 35%</string>
@@ -29,7 +30,7 @@
     <string name="swipe_large">大幅 · 65%</string>
     <string name="turn_when">何时翻页</string>
     <string name="at_bottom">滑到底后</string>
-    <string name="finish_connecting">完成连接</string>
+    <string name="finish_connecting">查看服务连接</string>
     <string name="finish_setup">完成使用准备</string>
     <string name="show_dot">显示圆点</string>
     <string name="footer">点击数字修改间隔 · 触屏即停</string>
@@ -47,7 +48,7 @@
     <string name="help">帮助</string>
     <string name="check_updates">检查更新</string>
     <string name="settings">设置</string>
-    <string name="progress_explanation">连续两次没看到页面变化就暂停\n\n有些图片页面看不出变化，如果经常误停，可以关掉</string>
+    <string name="progress_explanation">点击一次后等待新页，最多等 20–30 秒；未确认变化就暂停，不会自动补点\n\n慢滑后翻页始终等待新页就绪，此开关仅影响其他翻页模式</string>
     <string name="disable_check">关闭检查</string>
     <string name="enable_check">开启检查</string>
     <string name="duration_title">多少分钟后停止</string>
@@ -57,6 +58,12 @@
     <string name="close">关闭</string>
     <string name="setup_show_title">让圆点出现</string>
     <string name="setup_access_title">允许屏幕操作</string>
+    <string name="setup_connect_title">已授权，等待连接</string>
+    <string name="connection_wait_hint">无障碍开关仍已开启，无需重新授权\n系统连接后会自动恢复「显示圆点」</string>
+    <string name="access_unknown_title">检查服务状态</string>
+    <string name="access_unknown_hint">暂时无法确认系统服务状态\n首次使用可在设置中开启轻翻页；已经开启则稍候再检查，无需重复授权</string>
+    <string name="access_disabled_title">无障碍服务已关闭</string>
+    <string name="access_disabled_hint">轻翻页此前已获授权，但系统中的服务开关现在已关闭\n请先在无障碍设置中恢复；若反复关闭，需结合手机型号检查系统后台管理或停用原因</string>
     <string name="setup_ready_intro">已经准备好了\n接下来试试屏幕上的小圆点</string>
     <string name="setup_access_intro">开启「%1$s」无障碍服务即可\n不需要再开悬浮窗权限</string>
     <string name="setup_dot_visible">小圆点已经显示\n轻点开始或暂停，长按展开</string>
@@ -71,7 +78,7 @@
     <string name="setup_system_path">在系统设置中找到「%1$s」，打开开关</string>
     <string name="recheck">重新检查</string>
     <string name="enable_access">去开启</string>
-    <string name="reconnect_hint">回设置关掉再打开，然后回来试试</string>
+    <string name="reconnect_hint">授权仍在，系统尚未恢复连接；持续无法连接时可查看恢复方法</string>
     <string name="access_settings">回到无障碍设置</string>
     <string name="setup_stuck">找不到 / 开关是灰色的</string>
     <string name="setup_disclosure_short">用来读取页面，按你的设置点击或滑动\n网页内容不保存、不上传</string>
@@ -91,7 +98,7 @@
     <string name="restricted_help">如果手机提示「受限设置」，并且你信任这个安装包\n\n1、打开下方的应用信息\n2、点右上角菜单 → 允许受限设置，按提示确认\n3、回到轻翻页，点「去开启」\n\n找不到这个选项时，按手机上的提示操作</string>
     <string name="open_app_info">打开应用信息</string>
     <string name="reconnect_title">重新连接</string>
-    <string name="reconnect_help">回到无障碍设置，把%1$s关掉再打开，然后回来试试</string>
+    <string name="reconnect_help">开关已开启但服务未连接，不需要每次重新授权\n\n先返回应用稍候；若一直未恢复，可在无障碍设置中将%1$s关闭再开启一次，让系统重新连接\n\n应用无法强制恢复或保证服务常驻</string>
     <string name="battery_title">只在失效时调整</string>
     <string name="battery_help">先看看无障碍服务还开着没\n\n如果手机总是关掉轻翻页，可以在应用信息的电池设置里允许后台活动\n\n能正常使用就不用调整</string>
     <string name="disclosure_title">这个权限用来做什么</string>
@@ -101,7 +108,7 @@
     <string name="screen_off">屏幕已关闭，请手动重新开始</string>
     <string name="timer_ended">已到设定停止时间</string>
     <string name="action_timeout">点击未完成，已暂停</string>
-    <string name="waiting_page">等页面更新</string>
+    <string name="waiting_page">已点一次，等新页就绪</string>
     <string name="action_scroll">滑动</string>
     <string name="action_find">识别</string>
     <string name="action_turn">翻页</string>
@@ -126,8 +133,8 @@
     <string name="move_dot">移动圆点后再开始</string>
     <string name="gesture_interrupted">点击被打断，已暂停</string>
     <string name="gesture_rejected">系统未接受点击，请检查权限</string>
-    <string name="progress_unreadable">暂时看不出是否翻页，已暂停</string>
-    <string name="progress_unchanged">连续两次没看到页面变化，已暂停</string>
+    <string name="progress_unreadable">未确认新页，已暂停；请检查或手动翻页后继续</string>
+    <string name="progress_unchanged">未确认翻页，已暂停；请手动翻页后继续，不会自动补点</string>
     <string name="page_lost">暂时读不到页面，已暂停</string>
     <string name="page_complex">页面过于复杂，请使用固定位置</string>
     <string name="next_missing">找不到明确的下一页，可改用选点</string>
