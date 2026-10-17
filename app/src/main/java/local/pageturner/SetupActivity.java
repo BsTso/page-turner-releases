@@ -35,13 +35,14 @@ public class SetupActivity extends LocalizedActivity {
         }
     }
     private void render(int state,boolean panel,boolean slow) {
+        boolean restore=SetupState.needsRestore(state,SetupAccess.previouslyGranted(this));
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true); scroll.setBackgroundColor(Ui.BG);
         body=Ui.column(this); body.setPadding(d(28),d(24),d(28),d(28)); scroll.addView(body); setContentView(scroll);
         scroll.setOnApplyWindowInsetsListener((v,i) -> { v.setPadding(i.getSystemWindowInsetLeft(),i.getSystemWindowInsetTop(),i.getSystemWindowInsetRight(),i.getSystemWindowInsetBottom()); return i; });
         TextView back=Ui.action(this,s(R.string.setup_back),Ui.INK,Ui.BG); back.setGravity(Gravity.CENTER_VERTICAL); body.addView(back); back.setOnClickListener(v -> finish());
         gap(28); line(state==SetupState.READY?"02  /  02":"01  /  02",12,Ui.MUTED); gap(16);
-        TextView title=line(state==SetupState.READY?s(R.string.setup_show_title):s(R.string.setup_access_title),28,Ui.INK); Ui.bold(title); gap(16);
-        line(state==SetupState.READY?s(R.string.setup_ready_intro):s(R.string.setup_access_intro,SetupAccess.label(this)),15,Ui.MUTED);
+        TextView title=line(s(state==SetupState.READY?R.string.setup_show_title:state==SetupState.CONNECTING?R.string.setup_connect_title:state==SetupState.UNKNOWN?R.string.access_unknown_title:restore?R.string.access_disabled_title:R.string.setup_access_title),28,Ui.INK); Ui.bold(title); gap(16);
+        line(state==SetupState.READY?s(R.string.setup_ready_intro):state==SetupState.CONNECTING?s(R.string.connection_wait_hint):state==SetupState.UNKNOWN?s(R.string.access_unknown_hint):restore?s(R.string.access_disabled_hint):s(R.string.setup_access_intro,SetupAccess.label(this)),15,Ui.MUTED);
         gap(28);
         if(state==SetupState.READY) {
             line("●",32,Ui.INK); gap(12);
@@ -57,11 +58,17 @@ public class SetupActivity extends LocalizedActivity {
             });
             if(panel) action(s(R.string.setup_retry_dot),false,() -> { SetupAccess.hide(); showPoint(); });
             gap(14); line(s(R.string.setup_dot_tip),12,Ui.MUTED);
+        } else if(state==SetupState.UNKNOWN) {
+            action(s(R.string.recheck),true,() -> sync(true));
+            action(s(R.string.access_settings),false,() -> SetupAccess.settings(this));
         } else {
             boolean oppo="OPPO".equalsIgnoreCase(Build.MANUFACTURER);
             line(state==SetupState.CONNECTING?(slow?s(R.string.connecting_slow):s(R.string.connecting)):(oppo?s(R.string.setup_oppo_path,SetupAccess.label(this)):s(R.string.setup_system_path,SetupAccess.label(this))),15,Ui.INK);
             gap(24);
-            action(state==SetupState.CONNECTING?s(R.string.recheck):s(R.string.enable_access),true,() -> { if(SetupAccess.state(this)==SetupState.CONNECTING) sync(true); else SetupAccess.settings(this); });
+            action(state==SetupState.CONNECTING?s(R.string.recheck):s(R.string.enable_access),true,() -> {
+                int current=SetupAccess.state(this);
+                if(current==SetupState.OFF) SetupAccess.settings(this); else sync(true);
+            });
             if(state==SetupState.CONNECTING) {
                 if(slow) { gap(10); line(s(R.string.reconnect_hint),13,Ui.MUTED); }
                 action(s(R.string.access_settings),false,() -> SetupAccess.settings(this));
@@ -90,9 +97,13 @@ public class SetupActivity extends LocalizedActivity {
                 if(n==2) new AlertDialog.Builder(this).setTitle(s(R.string.reconnect_title))
                     .setMessage(s(R.string.reconnect_help,SetupAccess.label(this)))
                     .setPositiveButton(s(R.string.open_settings),(a,b) -> SetupAccess.settings(this)).setNegativeButton(s(R.string.back),null).show();
-                if(n==3) new AlertDialog.Builder(this).setTitle(s(R.string.battery_title))
-                    .setMessage(s(R.string.battery_help))
-                    .setPositiveButton(s(R.string.open_app_info),(a,b) -> SetupAccess.appInfo(this)).setNegativeButton(s(R.string.back),null).show();
+                if(n==3) {
+                    int current=SetupAccess.state(this);
+                    int title=current==SetupState.OFF?R.string.access_disabled_title:current==SetupState.CONNECTING?R.string.reconnect_title:current==SetupState.UNKNOWN?R.string.access_unknown_title:R.string.battery_title;
+                    String message=current==SetupState.OFF?(SetupAccess.previouslyGranted(this)?s(R.string.access_disabled_hint):s(R.string.setup_access_intro,SetupAccess.label(this))):current==SetupState.CONNECTING?s(R.string.reconnect_help,SetupAccess.label(this)):current==SetupState.UNKNOWN?s(R.string.access_unknown_hint):s(R.string.battery_help);
+                    new AlertDialog.Builder(this).setTitle(s(title)).setMessage(message)
+                        .setPositiveButton(s(R.string.access_settings),(a,b) -> SetupAccess.settings(this)).setNegativeButton(s(R.string.back),null).show();
+                }
             }).show();
     }
     private void disclosure() { new AlertDialog.Builder(this).setTitle(s(R.string.disclosure_title)).setMessage(s(R.string.disclosure_full)).setPositiveButton(s(R.string.ok),null).show(); }

@@ -25,7 +25,9 @@ public final class ReadingRules {
         if(oldUrl!=null && newUrl!=null && !oldUrl.equals(newUrl)) return true;
         return oldContent!=null && newContent!=null && !oldContent.equals(newContent);
     }
-    public static long checkDelay(long interval) { return Math.max(8000,Math.min(15000,interval)); }
-    public static boolean stopAfterMisses(int count) { return count>=2; }
+    public static boolean findNextButton(int mode) { return mode==3; }
+    public static boolean confirmTurn(int mode,boolean checkProgress) { return mode==2 || checkProgress; }
+    public static long checkDelay(long interval) { return Math.max(20000,Math.min(30000,interval)); }
+    public static boolean stopAfterMisses(int count) { return count>=1; }
     private ReadingRules() {}
 }

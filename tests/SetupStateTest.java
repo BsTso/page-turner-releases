@@ -14,6 +14,38 @@ public class SetupStateTest {
         check(SetupState.canFinish(SetupState.READY,true));
         int state=SetupState.resolve(true,true);
         check(SetupState.canFinish(state,true));
+        // The system's enabled-service list can contain only bound services during a cold start.
+        check(SetupState.resolve(true,true,false,false)==SetupState.CONNECTING);
+        check(SetupState.resolve(true,true,false,true)==SetupState.READY);
+        check(SetupState.resolve(true,false,true,true)==SetupState.OFF); // Actual revocation still wins.
+        check(SetupState.resolve(false,false,true,false)==SetupState.CONNECTING);
+        check(SetupState.resolve(false,false,false,true)==SetupState.READY);
+        check(SetupState.resolve(false,false,false,false)==SetupState.UNKNOWN); // Never invent a revoked permission.
+        String pkg="local.pageturner",service="local.pageturner.TurnService";
+        check(SetupState.containsService("local.pageturner/local.pageturner.TurnService",pkg,service));
+        check(SetupState.containsService("other.app/.Service:local.pageturner/.TurnService:another/.Service",pkg,service));
+        check(SetupState.containsService(" local.pageturner/.TurnService ",pkg,".TurnService"));
+        check(!SetupState.containsService(null,pkg,service));
+        check(!SetupState.containsService("",pkg,service));
+        check(!SetupState.containsService("local.pageturner/.TurnService2",pkg,service));
+        check(!SetupState.containsService("local.pageturner.copy/local.pageturner.TurnService",pkg,service));
+        check(!SetupState.containsService("local.pageturner:/.TurnService:local.pageturner/",pkg,service));
+        check(SetupState.shouldOpenSetup(false,SetupState.OFF));
+        check(!SetupState.shouldOpenSetup(false,SetupState.CONNECTING)); // Existing grant survives a fresh process.
+        check(!SetupState.shouldOpenSetup(false,SetupState.READY));
+        check(SetupState.shouldOpenSetup(false,SetupState.UNKNOWN)); // First install can inspect settings without claiming revoked access.
+        check(!SetupState.shouldOpenSetup(true,SetupState.OFF)); // Returning users stay on the home page.
+        check(!SetupState.shouldOpenSetup(true,SetupState.UNKNOWN));
+        check(SetupState.needsRestore(SetupState.OFF,true)); // Previously granted but genuinely disabled.
+        check(!SetupState.needsRestore(SetupState.OFF,false)); // First-time setup remains distinct.
+        check(!SetupState.needsRestore(SetupState.CONNECTING,true)); // Connection delay is not revoked access.
+        check(!SetupState.needsRestore(SetupState.UNKNOWN,true)); // Failed reads must not claim revocation.
+        check(!SetupState.needsRestore(SetupState.READY,true));
+        check(!SetupState.canFinish(SetupState.UNKNOWN,true));
+        // Enabled -> disconnected -> connected does not pass through OFF or require regranting.
+        check(SetupState.resolve(true,true,true,true)==SetupState.READY);
+        check(SetupState.resolve(true,true,false,false)==SetupState.CONNECTING);
+        check(SetupState.resolve(true,true,true,true)==SetupState.READY);
         state=SetupState.resolve(false,true);
         check(!SetupState.canFinish(state,true)); // Recheck at confirmation, not a stale UI flag.
         state=SetupState.resolve(true,false);

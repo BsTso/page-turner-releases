@@ -9,6 +9,8 @@ try {
     }
     & $NodePath tests/desktop-rules.cjs
     if($LASTEXITCODE -ne 0) { throw 'Desktop rule checks failed' }
+    & $NodePath tests/desktop-background.cjs
+    if($LASTEXITCODE -ne 0) { throw 'Desktop session checks failed' }
     $manifest=Get-Content desktop/manifest.json -Raw | ConvertFrom-Json
     [xml]$android=Get-Content app/src/main/AndroidManifest.xml -Raw
     $version=$android.manifest.GetAttribute('versionName','http://schemas.android.com/apk/res/android')

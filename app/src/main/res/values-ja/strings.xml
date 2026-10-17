@@ -21,7 +21,8 @@
     <string name="turn_mode">めくり方</string>
     <string name="mode_tap">タップでめくる</string>
     <string name="mode_scroll">下へスクロール</string>
-    <string name="mode_combined">スクロールしてめくる</string>
+    <string name="mode_combined">ゆっくり下までスクロールしてめくる</string>
+    <string name="combined_hint">最下部で右側、または保存した位置をタップ\n1回だけタップし、新しいページを待ちます、確認できない場合は一時停止します</string>
     <string name="mode_smart">次ページを検出</string>
     <string name="swipe_distance">スクロール幅</string>
     <string name="swipe_small">小さめ · 35%</string>
@@ -29,7 +30,7 @@
     <string name="swipe_large">大きめ · 65%</string>
     <string name="turn_when">めくるタイミング</string>
     <string name="at_bottom">一番下に着いたら</string>
-    <string name="finish_connecting">接続を確認</string>
+    <string name="finish_connecting">サービスの接続を確認</string>
     <string name="finish_setup">利用を準備</string>
     <string name="show_dot">丸ボタンを表示</string>
     <string name="footer">数字をタップして間隔変更 · 触れたら停止</string>
@@ -47,7 +48,7 @@
     <string name="help">このアプリについて</string>
     <string name="check_updates">更新を確認</string>
     <string name="settings">設定</string>
-    <string name="progress_explanation">2回続けてページの変化を確認できないと一時停止します\n\n画像の変化を読み取れないページもあります\n誤って停止する場合はオフにしてください</string>
+    <string name="progress_explanation">1回タップして新しいページを最大20～30秒待ちます、確認できない場合は再タップせず一時停止します\n\nスクロールしてめくるモードは、この設定に関わらず新しいページを待ちます</string>
     <string name="disable_check">オフにする</string>
     <string name="enable_check">オンにする</string>
     <string name="duration_title">何分後に停止するか</string>
@@ -57,6 +58,12 @@
     <string name="close">閉じる</string>
     <string name="setup_show_title">丸ボタンを表示</string>
     <string name="setup_access_title">画面の操作を許可</string>
+    <string name="setup_connect_title">許可済み・接続待ち</string>
+    <string name="connection_wait_hint">ユーザー補助は有効のままで、再許可は不要です\n接続されると「丸を表示」が自動で戻ります</string>
+    <string name="access_unknown_title">サービスの状態を確認</string>
+    <string name="access_unknown_hint">現在システムの状態を確認できません\n初回は設定で軽めくりを有効にしてください、有効になっていれば再許可せずに待ってから確認してください</string>
+    <string name="access_disabled_title">ユーザー補助サービスがオフです</string>
+    <string name="access_disabled_hint">以前は許可されていましたが、現在システムのサービススイッチがオフです\nユーザー補助の設定で戻してください、放置や再起動後に繰り返しオフになる場合は、システムのバージョンに合わせて原因を確認してください</string>
     <string name="setup_ready_intro">準備ができました\n丸ボタンを表示してみましょう</string>
     <string name="setup_access_intro">「%1$s」のユーザー補助をオンにしてください\n別途オーバーレイの許可は不要です</string>
     <string name="setup_dot_visible">丸ボタンを表示しました\nタップで開始・一時停止、長押しでメニュー</string>
@@ -71,9 +78,9 @@
     <string name="setup_system_path">設定で「%1$s」を探してオンにしてください</string>
     <string name="recheck">もう一度確認</string>
     <string name="enable_access">有効にする</string>
-    <string name="reconnect_hint">設定で一度オフにしてからオンにし、戻ってください</string>
+    <string name="reconnect_hint">許可は有効ですが接続されていません、続く場合は復旧方法を確認してください</string>
     <string name="access_settings">ユーザー補助の設定へ</string>
-    <string name="setup_stuck">見つからない・オンにできない</string>
+    <string name="setup_stuck">サービスや権限の問題</string>
     <string name="setup_disclosure_short">ページを読み取り、設定したタップやスクロールを実行します\nページの内容は保存・送信しません</string>
     <string name="permission_details">権限の用途を見る</string>
     <string name="see_solutions">解決方法を見る</string>
@@ -82,7 +89,7 @@
     <string name="missing_app">%1$sが見つからない</string>
     <string name="restricted_switch">制限付き設定・オンにできない</string>
     <string name="enabled_not_working">オンにしても使えない</string>
-    <string name="stops_working">しばらくすると動かなくなる</string>
+    <string name="stops_working">放置や再起動後に動かなくなる</string>
     <string name="find_app_title">%1$sを探す</string>
     <string name="find_app_help">ユーザー補助の設定で「ダウンロードしたアプリ」や「インストール済みサービス」を開き、%1$sを選んでください\n\n項目名は機種によって異なります</string>
     <string name="open_settings">設定を開く</string>
@@ -91,9 +98,9 @@
     <string name="restricted_help">「制限付き設定」と表示され、このAPKを信頼できる場合\n\n1 下の「アプリ情報を開く」をタップ\n2 右上のメニューで「制限付き設定を許可」を選び、確認\n3 ページめくりに戻り「有効にする」をタップ\n\n項目がない場合は、端末の案内に従ってください</string>
     <string name="open_app_info">アプリ情報を開く</string>
     <string name="reconnect_title">接続し直す</string>
-    <string name="reconnect_help">ユーザー補助の設定で%1$sを一度オフにしてからオンにし、戻ってください</string>
-    <string name="battery_title">動かなくなる場合のみ</string>
-    <string name="battery_help">まずユーザー補助がオンになっているか確認してください\n\n端末が繰り返しアプリを停止する場合は、アプリ情報のバッテリー設定でバックグラウンド動作を許可してください\n\n問題なく使えていれば変更は不要です</string>
+    <string name="reconnect_help">スイッチが有効でもサービスが未接続の場合があります、毎回の再許可は不要です\n\nまずアプリに戻って待ってください、接続されない状態が続く場合はユーザー補助の設定で%1$sを一度オフにしてからオンにし、再接続を促してください\n\nアプリから強制的な復旧や常駐を保証することはできません</string>
+    <string name="battery_title">放置や再起動後に動かなくなる</string>
+    <string name="battery_help">まず設定でユーザー補助サービスのスイッチを確認してください、オフなら有効に戻し、オンのままならシステムの接続を待ってください\n\n放置や再起動後に繰り返す場合に限り、自動起動やバックグラウンド制限を確認してください、項目はシステムによって異なります\n\nこれらの設定で常に有効な状態を保証できるわけではありません、正常に動く場合は変更不要です</string>
     <string name="disclosure_title">この権限の用途</string>
     <string name="disclosure_full">現在のページを読み取り、次ページや内容の変化を確認して、設定したタップやスクロールを実行します\n\nスクリーンショットは撮らず、ページの内容は保存・送信しません\n更新の確認時だけGitHubに接続します\n\n権限をオンにしても自動では始まりません\n丸ボタンか「開始」をタップしてください\n画面に触れると一時停止し、システム設定でサービスをオフにもできます</string>
     <string name="ok">わかりました</string>
@@ -101,7 +108,7 @@
     <string name="screen_off">画面オフで停止しました · 再開は手動で</string>
     <string name="timer_ended">設定した時間になりました</string>
     <string name="action_timeout">操作が完了せず一時停止しました</string>
-    <string name="waiting_page">ページの更新を待っています</string>
+    <string name="waiting_page">タップ済み・新しいページを待っています</string>
     <string name="action_scroll">スクロール</string>
     <string name="action_find">検出</string>
     <string name="action_turn">ページめくり</string>
@@ -126,8 +133,8 @@
     <string name="move_dot">丸ボタンを移動してから開始</string>
     <string name="gesture_interrupted">操作が中断され一時停止</string>
     <string name="gesture_rejected">操作できません\n権限を確認してください</string>
-    <string name="progress_unreadable">ページが変わったか確認できず一時停止</string>
-    <string name="progress_unchanged">2回続けて変化を確認できず一時停止</string>
+    <string name="progress_unreadable">ページを確認できず一時停止・確認するか手動でめくってから再開</string>
+    <string name="progress_unchanged">めくりを確認できず一時停止・手動でめくってから再開・自動再タップなし</string>
     <string name="page_lost">ページを読み取れず一時停止</string>
     <string name="page_complex">ページが複雑です\nタップ位置を指定してください</string>
     <string name="next_missing">次ページが見つかりません\n位置選択をお試しください</string>
