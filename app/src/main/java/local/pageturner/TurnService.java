@@ -28,10 +28,14 @@ public class TurnService extends AccessibilityService {
     private TextView toggle;
     private LinearLayout panelHeader, panelRow;
     private Bubble bubble;
-    private FocusFrame focusFrame;
+    private FocusMask focusMask;
     private boolean immersive, focusSuspendedForTap, keepAliveActive;
     private Rect lastScrollBounds;
     private long lastEventGuard;
+    private int transientNullRoot;
+    private boolean pageHadImage;
+    private int pageScrollAttempts, loadWaitCount, scrollLoadRetries;
+    private String finishImageSig;
     private final Runnable focusTicker = new Runnable() {
         public void run() {
             if (!running || !immersive) return;
@@ -43,7 +47,7 @@ public class TurnService extends AccessibilityService {
                     updateFocus(image);
                 } catch (RuntimeException ignored) {}
             }
-            if (running && immersive) handler.postDelayed(this, busy ? 280 : 600);
+            if (running && immersive) handler.postDelayed(this, busy ? 320 : 600);
         }
     };
     private boolean collapsed;
@@ -162,10 +166,10 @@ public class TurnService extends AccessibilityService {
         running = false; busy = false; generation++; handler.removeCallbacks(ticker); reason = message;
         releaseDrag();
         handler.removeCallbacks(focusTicker);
-        focusSuspendedForTap = false;
-        if (focusFrame != null) { focusFrame.destroy(); focusFrame = null; }
+        focusSuspendedForTap = false; transientNullRoot = 0;
+        if (focusMask != null) { removeOverlay(focusMask); focusMask = null; }
         // Preserve a dispatched but unconfirmed turn across pause/resume.
-        watching = false; clearScroll();
+        watching = false; clearScroll(); finishImageSig = null;
         if (panel != null) { panelParams.flags &= ~WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON; updatePanelLayout(); }
         refreshPaused();
     }
@@ -237,107 +241,90 @@ public class TurnService extends AccessibilityService {
             if (running && isShown()) postInvalidateDelayed(33);
         }
     }
-    /** Four non-overlapping edge strips frame the main image without covering it with an overlay window. */
-    private class FocusFrame {
-        final Strip[] strips = new Strip[4];
-        final WindowManager.LayoutParams[] params = new WindowManager.LayoutParams[4];
-        final Rect image = new Rect();
-        boolean attached, visible, suspended;
+    /** Single atomic mask with deadband, anti-shrink hysteresis and smooth interpolation; never calls updateViewLayout while scrolling. */
+    private class FocusMask extends View {
+        final RectF display = new RectF();
+        final RectF targetRect = new RectF();
+        final Paint paint = new Paint();
+        boolean hasDisplay, hasTarget, suspended;
+        int shrinkStreak;
         long lastFoundAt;
-        private class Strip extends View {
-            final Paint paint = new Paint();
-            Strip() { super(TurnService.this); setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO); paint.setColor(Color.BLACK); }
-            @Override protected void onDraw(Canvas canvas) {
-                int save = canvas.save();
-                if (panel != null && panel.isAttachedToWindow()) {
-                    int[] origin = new int[2], p = new int[2];
-                    getLocationOnScreen(origin); panel.getLocationOnScreen(p);
-                    canvas.clipOutRect(p[0] - origin[0] - dp(2), p[1] - origin[1] - dp(2), p[0] - origin[0] + panel.getWidth() + dp(2), p[1] - origin[1] + panel.getHeight() + dp(2));
-                }
-                canvas.drawPaint(paint); canvas.restoreToCount(save);
-            }
-        }
-        boolean covers(float x, float y) {
-            return attached && visible && !suspended && !image.contains(Math.round(x), Math.round(y));
-        }
+        FocusMask() { super(TurnService.this); setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO); paint.setColor(Color.BLACK); }
         void suspend(boolean on) {
             if (suspended == on) return;
             suspended = on;
-            if (!attached) return;
-            if (on) { for (Strip s : strips) if (s != null) s.setVisibility(View.GONE); }
-            else if (visible) layoutStrips();
+            if (on) setVisibility(View.GONE);
+            else if (hasDisplay) { setVisibility(View.VISIBLE); invalidate(); }
         }
         void apply(Rect next, long now) {
             if (next == null) {
-                if (visible && now - lastFoundAt < 1500) return;
-                visible = false;
-                if (attached) for (Strip s : strips) if (s != null) s.setVisibility(View.GONE);
+                shrinkStreak = 0;
+                // Hold the last cutout during page transitions so ads do not flash while the next image loads.
+                if (hasDisplay && (watching || now - lastFoundAt < 2500)) return;
+                hasDisplay = false; hasTarget = false;
+                if (getVisibility() != View.GONE) setVisibility(View.GONE);
                 return;
             }
             Rect clamped = new Rect(Math.max(0, next.left), Math.max(0, next.top), Math.min(screenWidth, next.right), Math.min(screenHeight, next.bottom));
             if (clamped.isEmpty()) return;
             lastFoundAt = now;
-            if (attached && visible && !suspended
-                && Math.abs(clamped.left - image.left) < 4 && Math.abs(clamped.top - image.top) < 4
-                && Math.abs(clamped.right - image.right) < 4 && Math.abs(clamped.bottom - image.bottom) < 4) return;
-            image.set(clamped); visible = true;
-            if (suspended) return;
-            if (!attached && !attach()) return;
-            layoutStrips();
-        }
-        private boolean attach() {
-            for (int i = 0; i < 4; i++) {
-                strips[i] = new Strip();
-                params[i] = overlay(0, 0, true);
-                strips[i].setVisibility(View.GONE);
-                try { manager.addView(strips[i], params[i]); }
-                catch (RuntimeException e) { destroy(); immersive = false; return false; }
+            if (hasTarget) {
+                float oldArea = targetRect.width() * targetRect.height();
+                float newArea = clamped.width() * 1f * clamped.height();
+                if (!watching && oldArea > 0 && newArea < oldArea * .45f && ++shrinkStreak < 2) return;
+                shrinkStreak = 0;
+                int deadband = dp(6);
+                if (Math.abs(clamped.left - targetRect.left) <= deadband && Math.abs(clamped.top - targetRect.top) <= deadband
+                    && Math.abs(clamped.right - targetRect.right) <= deadband && Math.abs(clamped.bottom - targetRect.bottom) <= deadband) return;
             }
-            attached = true; return true;
-        }
-        private void layoutStrips() {
-            int w = screenWidth, h = screenHeight;
-            setStrip(0, 0, 0, w, image.top);
-            setStrip(1, 0, image.bottom, w, h - image.bottom);
-            setStrip(2, 0, image.top, image.left, image.height());
-            setStrip(3, image.right, image.top, w - image.right, image.height());
-        }
-        private void setStrip(int i, int x, int y, int w, int h) {
-            Strip s = strips[i]; WindowManager.LayoutParams lp = params[i];
-            if (s == null || lp == null) return;
-            if (w <= 0 || h <= 0) {
-                if (s.getVisibility() != View.GONE) s.setVisibility(View.GONE);
-                return;
+            targetRect.set(clamped); hasTarget = true;
+            if (!hasDisplay) { display.set(targetRect); hasDisplay = true; }
+            if (!suspended) {
+                if (getVisibility() != View.VISIBLE) setVisibility(View.VISIBLE);
+                invalidate();
             }
-            boolean changed = lp.x != x || lp.y != y || lp.width != w || lp.height != h;
-            lp.x = x; lp.y = y; lp.width = w; lp.height = h;
-            if (s.getVisibility() != View.VISIBLE) s.setVisibility(View.VISIBLE);
-            if (changed) {
-                try { manager.updateViewLayout(s, lp); }
-                catch (RuntimeException e) { destroy(); immersive = false; return; }
-            }
-            s.invalidate();
         }
-        void destroy() {
-            attached = false; visible = false; suspended = false;
-            for (int i = 0; i < 4; i++) {
-                if (strips[i] != null) { removeOverlay(strips[i]); strips[i] = null; }
-                params[i] = null;
+        @Override protected void onDraw(Canvas canvas) {
+            if (!hasDisplay || suspended) return;
+            boolean animating = false;
+            if (hasTarget) {
+                float dl = targetRect.left - display.left, dt = targetRect.top - display.top;
+                float dr = targetRect.right - display.right, db = targetRect.bottom - display.bottom;
+                if (Math.abs(dl) > 1 || Math.abs(dt) > 1 || Math.abs(dr) > 1 || Math.abs(db) > 1) {
+                    display.left += dl * .32f; display.top += dt * .32f; display.right += dr * .32f; display.bottom += db * .32f;
+                    animating = true;
+                } else {
+                    display.set(targetRect);
+                }
             }
+            int save = canvas.save();
+            int[] origin = new int[2]; getLocationOnScreen(origin);
+            canvas.clipOutRect(display.left - origin[0], display.top - origin[1], display.right - origin[0], display.bottom - origin[1]);
+            if (panel != null && panel.isAttachedToWindow()) {
+                int[] p = new int[2]; panel.getLocationOnScreen(p);
+                canvas.clipOutRect(p[0] - origin[0] - dp(2), p[1] - origin[1] - dp(2), p[0] - origin[0] + panel.getWidth() + dp(2), p[1] - origin[1] + panel.getHeight() + dp(2));
+            }
+            canvas.drawPaint(paint); canvas.restoreToCount(save);
+            if (animating && isShown()) postInvalidateOnAnimation();
         }
     }
     private void updateFocus(Rect image) {
         if (!running || !immersive) return;
-        if (focusFrame == null) {
+        if (focusMask == null) {
             if (image == null) return;
-            focusFrame = new FocusFrame();
+            focusMask = new FocusMask();
+            try { manager.addView(focusMask, overlay(-1, -1, true)); }
+            catch (RuntimeException e) { focusMask = null; immersive = false; return; }
         }
-        focusFrame.apply(image, SystemClock.uptimeMillis());
+        focusMask.apply(image, SystemClock.uptimeMillis());
     }
     private void restoreFocusAfterTap() {
         if (!focusSuspendedForTap) return;
         focusSuspendedForTap = false;
-        if (focusFrame != null && running && immersive) focusFrame.suspend(false);
+        if (focusMask != null && running && immersive) focusMask.suspend(false);
+    }
+    private String effectiveScrollKey(PageProbe.Snapshot snap) {
+        return snap != null && snap.scrollKey != null ? snap.scrollKey : "window:" + targetWindow;
     }
     private void startSession() {
         startSession(false);
@@ -357,7 +344,7 @@ public class TurnService extends AccessibilityService {
         boolean samePage = Rules.sameTarget(target, pkg, targetWindow, root.getWindowId(), screenWidth, screenHeight, s.x, s.y)
             && rotation == manager.getDefaultDisplay().getRotation() && mode == nextMode;
         boolean resumeTurn = samePage && progressWatch.hasPending();
-        if (!samePage || steps != nextSteps) phase = 0;
+        if (!samePage || steps != nextSteps) { phase = 0; pageHadImage = false; }
         if (!resumeTurn) clearTurn();
         target = pkg; targetWindow = root.getWindowId(); root.recycle();
         screenWidth = s.x; screenHeight = s.y; rotation = manager.getDefaultDisplay().getRotation();
@@ -368,6 +355,7 @@ public class TurnService extends AccessibilityService {
         pointX = ScreenProfiles.get(p, profile, "x", .8f); pointY = ScreenProfiles.get(p, profile, "y", .5f);
         autoBottom = true; checkProgress = p.getBoolean("check_progress", true);
         watching = resumeTurn; clearScroll(); lastScrollBounds = null; focusSuspendedForTap = false;
+        transientNullRoot = 0; pageScrollAttempts = 0; loadWaitCount = 0; scrollLoadRetries = 0; finishImageSig = null;
         interval = p.getLong("interval", 10000); smart = ReadingRules.findNextButton(mode);
         if (resumeTurn) { long now = SystemClock.uptimeMillis(); progressWatch.resume(now, interval); nextProbe = now + 750; }
         immersive = p.getBoolean("immersive", false);
@@ -386,11 +374,19 @@ public class TurnService extends AccessibilityService {
         KeyguardManager key = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
         if (!power.isInteractive() || key.isKeyguardLocked()) { pause(s(R.string.locked_paused)); return false; }
         Point s = size();
+        if (screenWidth != s.x || screenHeight != s.y || rotation != manager.getDefaultDisplay().getRotation()) {
+            pause(s(R.string.window_changed)); return false;
+        }
         AccessibilityNodeInfo root = getRootInActiveWindow();
-        String pkg = root == null || root.getPackageName() == null ? null : root.getPackageName().toString();
-        boolean valid = root != null && Rules.sameTarget(target, pkg, targetWindow, root.getWindowId(), screenWidth, screenHeight, s.x, s.y)
-            && rotation == manager.getDefaultDisplay().getRotation();
-        if (root != null) root.recycle();
+        if (root == null) {
+            // Browsers briefly return a null root while swapping documents; tolerate transient misses.
+            if (++transientNullRoot <= 4) return true;
+            pause(s(R.string.window_changed)); return false;
+        }
+        transientNullRoot = 0;
+        String pkg = root.getPackageName() == null ? null : root.getPackageName().toString();
+        boolean valid = Rules.sameTarget(target, pkg, targetWindow, root.getWindowId(), screenWidth, screenHeight, s.x, s.y);
+        root.recycle();
         if (!valid) { pause(s(R.string.window_changed)); return false; }
         List<AccessibilityWindowInfo> windows = getWindows();
         boolean obstructed = false;
@@ -405,12 +401,29 @@ public class TurnService extends AccessibilityService {
     private void performTurn() {
         if (busy || watching || !guard()) return;
         PageProbe.Snapshot before = snapshot();
+        if (!before.readable) { due = SystemClock.uptimeMillis() + 500; return; }
+        if (before.hasImage) pageHadImage = true;
         if (smart) { clickNextNode(before); return; }
-        int bottom = scrollWatch.bottom(before.scrollKey, before.bottom);
+        // Wait for the comic image to actually load before deciding whether to scroll or turn.
+        if ((mode == 1 || mode == 2) && (before.loading || pageHadImage && !before.hasImage) && loadWaitCount < 12) {
+            loadWaitCount++; due = SystemClock.uptimeMillis() + 1000; return;
+        }
+        loadWaitCount = 0;
+        // If a lazy image finished loading or expanded during the post-scroll rest, clear cached BOTTOM and scroll it.
+        if ((mode == 1 || mode == 2) && (before.extendsBelow || finishImageSig != null && before.imageSignature != null && !finishImageSig.equals(before.imageSignature))) {
+            clearScroll(); finishImageSig = null;
+        }
+        String scrollKey = effectiveScrollKey(before);
+        int bottom = scrollWatch.bottom(scrollKey, before.bottom);
+        // On a brand-new page that has not been scrolled yet, do not trust a stale semantic BOTTOM unless the image fits on screen.
+        if (mode == 2 && pageScrollAttempts == 0 && bottom == ReadingRules.BOTTOM && !before.fitsInViewport) {
+            bottom = ReadingRules.UNKNOWN;
+        }
         before.bottom = bottom;
         if (mode == 1 && bottom == ReadingRules.BOTTOM) { pause(s(R.string.reached_bottom)); expandPanel(); return; }
         boolean swipe = (mode == 1 || mode == 2) && bottom != ReadingRules.BOTTOM;
         if (swipe) {
+            pageScrollAttempts++; finishImageSig = null; scrollLoadRetries = 0;
             scrollPlan = new ScrollPlan(scrollKind, swipeDuration); passSwipes = 0;
             scrollPlan.locate(scrollWatch.position(), scrollWatch.maximum(), SystemClock.uptimeMillis());
             scrollPart(before); return;
@@ -424,7 +437,8 @@ public class TurnService extends AccessibilityService {
         long duration = 70;
         GestureDescription gesture = new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(path, 0, duration)).build();
         if (!guard()) return;
-        if (focusFrame != null && focusFrame.covers(x, y)) { focusSuspendedForTap = true; focusFrame.suspend(true); }
+        // Hide the full-screen focus overlay during the tap so InputDispatcher never flags the tap as obscured.
+        if (focusMask != null) { focusSuspendedForTap = true; focusMask.suspend(true); }
         ownScrollKey = null;
         ownStart = SystemClock.uptimeMillis(); ownEnd = ownStart + duration + 250;
         busy = true; busyAt = SystemClock.uptimeMillis(); busyUntil = busyAt + duration + 3000;
@@ -443,7 +457,7 @@ public class TurnService extends AccessibilityService {
         if (!area.intersect(dp(12), dp(24), screenWidth - dp(12), screenHeight - dp(24)) || area.height() < dp(80)) { pause(s(R.string.page_unreadable)); return; }
         int yPosition = scrollWatch.position(), maximum = scrollWatch.maximum(); long now = SystemClock.uptimeMillis();
         scrollPlan.locate(yPosition, maximum, now);
-        if (scrollPlan.reached(yPosition, maximum)) { finishPass(); return; }
+        if (scrollPlan.reached(yPosition, maximum) && !before.extendsBelow) { finishPass(before); return; }
         // A short first movement obtains the browser's actual scroll range.
         // If swipe 1 did not move at all, use a short confirming swipe instead of a full slow drag.
         boolean confirmStill = !scrollPlan.located() && passSwipes == 2 && scrollWatch.stillCount() >= 1;
@@ -454,10 +468,11 @@ public class TurnService extends AccessibilityService {
         long duration = scrollPlan.located() ? scrollPlan.duration(yPosition, maximum, distance, metricScale, now)
             : passSwipes == 1 ? 180
             : confirmStill ? Math.min(swipeDuration, 800) : swipeDuration;
-        if (distance < 1) { finishPass(); return; }
+        if (distance < 1) { finishPass(before); return; }
         float x = area.exactCenterX(), from = area.bottom - area.height() * .06f, to = from - distance;
         if (pathHitsPanel(x, from, to)) { pause(s(R.string.move_dot)); return; }
-        ownScrollKey = before.scrollKey; scrollWatch.begin(ownScrollKey, before.viewport); metricBefore = scrollWatch.position();
+        ownScrollKey = effectiveScrollKey(before);
+        scrollWatch.begin(ownScrollKey, before.viewport); metricBefore = scrollWatch.position();
         ownStart = now; ownEnd = now + duration + 1000; busy = true; busyAt = now; busyUntil = now + duration + 5000;
         final int token = generation; final ScrollPlan plan = scrollPlan;
         // Continued short strokes let pause end a slow drag without injecting a new tap.
@@ -468,11 +483,23 @@ public class TurnService extends AccessibilityService {
             handler.postDelayed(() -> {
                 if (!running || token != generation || plan != scrollPlan || !guard()) return;
                 PageProbe.Snapshot after = snapshot();
-                int end = scrollWatch.finish(after.scrollKey, after.viewport, after.bottom);
+                if (after.hasImage) pageHadImage = true;
+                String afterKey = effectiveScrollKey(after);
+                int end = scrollWatch.finish(afterKey, after.viewport, after.bottom);
+                if (after.extendsBelow && end != ReadingRules.MORE) end = ReadingRules.MORE;
                 int position = scrollWatch.position(), max = scrollWatch.maximum();
                 if (metricBefore >= 0 && position - metricBefore > dp(8)) metricScale = Math.max(.25f, Math.min(4, distance / (position - metricBefore)));
                 scrollPlan.locateAfterProbe(position, max, distance / metricScale, SystemClock.uptimeMillis());
-                if (end == ReadingRules.BOTTOM || scrollPlan.reached(position, max)) { finishPass(); return; }
+                // If an image is still loading, wait briefly instead of falsely declaring BOTTOM or UNKNOWN.
+                if ((after.loading || pageHadImage && !after.hasImage) && (end == ReadingRules.UNKNOWN || end == ReadingRules.BOTTOM && passSwipes <= 2) && scrollLoadRetries < 8) {
+                    scrollLoadRetries++; busyUntil = SystemClock.uptimeMillis() + 4000;
+                    handler.postDelayed(() -> {
+                        if (!running || token != generation || plan != scrollPlan || !guard()) return;
+                        scrollPart(snapshot());
+                    }, 800);
+                    return;
+                }
+                if (end == ReadingRules.BOTTOM || scrollPlan.reached(position, max) && !after.extendsBelow) { finishPass(after); return; }
                 if (!scrollPlan.located() && scrollKind == ScrollPlan.HALVES) { pause(s(R.string.half_unavailable)); expandPanel(); return; }
                 if (end == ReadingRules.UNKNOWN && passSwipes >= 2) { pause(s(R.string.scroll_unreadable)); expandPanel(); return; }
                 scrollPart(after);
@@ -520,8 +547,9 @@ public class TurnService extends AccessibilityService {
         try { dispatchGesture(new GestureDescription.Builder().addStroke(stroke.continueStroke(up, 0, 1, false)).build(), null, handler); }
         catch (IllegalArgumentException | IllegalStateException | SecurityException ignored) { /* Android already ended the connection/stroke. */ }
     }
-    private void finishPass() {
+    private void finishPass(PageProbe.Snapshot snap) {
         busy = false; count++; phase++; scrollPlan = null;
+        finishImageSig = snap == null ? null : snap.imageSignature;
         due = SystemClock.uptimeMillis() + interval;
     }
     private void completed(boolean swipe, PageProbe.Snapshot before) {
@@ -529,7 +557,7 @@ public class TurnService extends AccessibilityService {
         gestureId++;
         busy = false; count++; phase = swipe ? phase + 1 : 0; long now = SystemClock.uptimeMillis(); due = now + interval;
         if (!swipe) {
-            clearScroll();
+            clearScroll(); finishImageSig = null; pageScrollAttempts = 0; loadWaitCount = 0; scrollLoadRetries = 0;
             if (progressWatch.hasPending()) {
                 watching = true; nextProbe = now + 750;
             }
@@ -548,18 +576,23 @@ public class TurnService extends AccessibilityService {
     }
     private void checkTurn(long now) {
         PageProbe.Snapshot current = snapshot(); nextProbe = now + 750;
-        int result = progressWatch.observe(current.url, current.content, current.viewport, current.bottom, current.bodyVisible, current.loading, now);
+        if (!current.readable) return;
+        if (current.hasImage) pageHadImage = true;
+        int result = progressWatch.observe(current.url, current.content, current.viewport, current.bottom, current.bodyVisible, current.loading, now, current.hasImage, current.imageSignature);
         if (result == ProgressWatch.WAIT) return;
         watching = false;
-        if (result == ProgressWatch.CHANGED) { clearTurn(); due = now + interval; }
-        else {
+        if (result == ProgressWatch.CHANGED) {
+            clearTurn(); clearScroll(); pageScrollAttempts = 0; loadWaitCount = 0; scrollLoadRetries = 0; finishImageSig = null;
+            due = now + interval;
+        } else {
             pause(result == ProgressWatch.UNREADABLE ? s(R.string.progress_unreadable) : s(R.string.progress_unchanged)); expandPanel();
         }
     }
     private void prepareTurn(PageProbe.Snapshot before) {
         if (!ReadingRules.confirmTurn(mode, checkProgress)) return;
-        turnScrollKey = before.scrollKey; turnFromY = scrollWatch.position();
-        progressWatch.begin(before.url, before.content, before.viewport, before.bottom, mode == 2, SystemClock.uptimeMillis(), interval);
+        turnScrollKey = effectiveScrollKey(before); turnFromY = scrollWatch.position();
+        boolean expectImg = before.hasImage || pageHadImage;
+        progressWatch.begin(before.url, before.content, before.viewport, before.bottom, mode == 2, SystemClock.uptimeMillis(), interval, expectImg, before.imageSignature);
     }
     private void clearTurn() { progressWatch.clear(); turnScrollKey = null; turnFromY = -1; }
     private void clearScroll() { ownScrollKey = null; scrollWatch.clear(); scrollPlan = null; metricScale = 1; }
@@ -668,17 +701,23 @@ public class TurnService extends AccessibilityService {
             if (type == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
                 if (e.getWindowId() != targetWindow || e.getPackageName() == null || target == null || !target.equals(e.getPackageName().toString())) return;
                 long now = SystemClock.uptimeMillis();
-                AccessibilityNodeInfo source = e.getSource(); if (source == null) return;
-                String key; Rect bounds = new Rect();
-                try { key = PageProbe.nodeKey(source); source.getBoundsInScreen(bounds); } finally { source.recycle(); }
-                boolean mainSized = bounds.width() >= screenWidth / 2 && bounds.height() >= screenHeight / 3;
+                AccessibilityNodeInfo source = e.getSource();
+                String key = null; boolean mainSized;
+                if (source != null) {
+                    Rect bounds = new Rect();
+                    try { key = PageProbe.nodeKey(source); source.getBoundsInScreen(bounds); } finally { source.recycle(); }
+                    mainSized = bounds.isEmpty() || bounds.width() >= screenWidth / 2 && bounds.height() >= screenHeight / 3;
+                } else {
+                    // Chromium/WebView often omits source on TYPE_VIEW_SCROLLED while still reporting scrollY/maxScrollY.
+                    mainSized = true;
+                }
                 // A real return to the top can confirm image-only pages without accessible labels.
-                if (progressWatch.hasPending() && (key.equals(turnScrollKey) || mainSized)) {
+                if (progressWatch.hasPending() && (key != null && key.equals(turnScrollKey) || mainSized)) {
                     progressWatch.recordScrollReset(turnFromY, e.getScrollY(), e.getMaxScrollY());
                 }
                 // Slow-scroll metrics still belong only to our own swipe and the main scroller.
                 if (now < ownStart || now > ownEnd + 500) return;
-                if (key.equals(ownScrollKey)) {
+                if (key != null && key.equals(ownScrollKey)) {
                     scrollWatch.metric(key, e.getScrollY(), e.getMaxScrollY());
                 } else if (ownScrollKey != null && mainSized && (e.getMaxScrollY() > 0 || e.getScrollY() > 0)) {
                     scrollWatch.metric(ownScrollKey, e.getScrollY(), e.getMaxScrollY());
@@ -704,12 +743,11 @@ public class TurnService extends AccessibilityService {
     }
     private void clearOverlays() {
         running = false; busy = false; watching = false; generation++; activeStroke = null;
-        focusSuspendedForTap = false; lastScrollBounds = null;
+        focusSuspendedForTap = false; lastScrollBounds = null; transientNullRoot = 0; finishImageSig = null;
         handler.removeCallbacksAndMessages(null); clearScroll();
-        if (focusFrame != null) { focusFrame.destroy(); focusFrame = null; }
         // Android may already have detached accessibility overlays while unbinding.
-        for (View view : new View[]{picker, marker, panel}) removeOverlay(view);
-        picker = null; marker = null; panel = null; status = null; toggle = null;
+        for (View view : new View[]{picker, marker, focusMask, panel}) removeOverlay(view);
+        picker = null; marker = null; focusMask = null; panel = null; status = null; toggle = null;
         bubble = null; panelHeader = null; panelRow = null;
     }
     @Override public void onConfigurationChanged(Configuration c) {

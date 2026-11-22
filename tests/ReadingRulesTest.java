@@ -132,6 +132,16 @@ public class ReadingRulesTest {
         watch.begin("url-1","old","old-bottom",ReadingRules.BOTTOM,true,0,10000);
         watch.observe("url-2","new","short-page-view",ReadingRules.BOTTOM,true,false,1000);
         check(watch.observe("url-2","new","short-page-view",ReadingRules.BOTTOM,true,false,2500)==ProgressWatch.CHANGED,"short next page with changed URL and view can confirm");
+
+        // On comic/image pages, header text loads before the comic image; wait until the new image actually loads and settles.
+        watch.begin("url-1","page-1","view-1",ReadingRules.BOTTOM,true,0,10000,true,"img-1");
+        watch.observe("url-2","page-2","header-only",ReadingRules.MORE,true,false,1000,false,null);
+        check(watch.observe("url-2","page-2","header-only",ReadingRules.MORE,true,false,5000,false,null)==ProgressWatch.WAIT,"header text alone cannot confirm a comic page before image loads");
+        watch.observe("url-2","page-2","view-2a",ReadingRules.MORE,true,false,5500,true,"img-2-growing");
+        watch.observe("url-2","page-2","view-2b",ReadingRules.MORE,true,false,6000,true,"img-2-full");
+        // Animated ads changing text/view must not prevent a settled main image from confirming.
+        watch.observe("url-2","ad-tick-1","view-ad-1",ReadingRules.MORE,true,false,6700,true,"img-2-full");
+        check(watch.observe("url-2","ad-tick-2","view-ad-2",ReadingRules.MORE,true,false,7300,true,"img-2-full")==ProgressWatch.CHANGED,"settled main image confirms even when surrounding ad text changes");
         System.out.println("ReadingRulesTest: "+checks+" checks passed");
     }
 }
