@@ -2,6 +2,13 @@
 <resources>
     <string name="immersive">画像に集中</string>
     <string name="immersive_explanation">実行中は漫画の周りを隠し、一時停止すると元に戻します、画像を検出できない場合はそのまま表示します</string>
+    <string name="keep_alive_channel">実行中のステータス</string>
+    <string name="keep_alive_notif">ページめくりが動作中です（接続維持）</string>
+    <string name="keep_alive_label">バックグラウンド維持</string>
+    <string name="keep_alive_on">制限なし</string>
+    <string name="keep_alive_off">設定する</string>
+    <string name="keep_alive_action">省電力を除外</string>
+    <string name="keep_alive_explanation">システムによるバックグラウンド終了やユーザー補助の切断を減らします\n\n併せて確認すると効果的です：\n1. バッテリー：バックグラウンド動作を許可（制限なし）\n2. アプリ情報：自動起動を許可し、未使用時の権限削除をオフ\n3. 最近のアプリ一覧でページめくりをロック</string>
     <string name="rest_interval">待ち時間</string>
     <string name="slow_scroll">ゆっくりスクロール</string>
     <string name="scroll_page">一番下まで一度に</string>

@@ -102,6 +102,7 @@ public class SetupActivity extends LocalizedActivity {
                     int title=current==SetupState.OFF?R.string.access_disabled_title:current==SetupState.CONNECTING?R.string.reconnect_title:current==SetupState.UNKNOWN?R.string.access_unknown_title:R.string.battery_title;
                     String message=current==SetupState.OFF?(SetupAccess.previouslyGranted(this)?s(R.string.access_disabled_hint):s(R.string.setup_access_intro,SetupAccess.label(this))):current==SetupState.CONNECTING?s(R.string.reconnect_help,SetupAccess.label(this)):current==SetupState.UNKNOWN?s(R.string.access_unknown_hint):s(R.string.battery_help);
                     new AlertDialog.Builder(this).setTitle(s(title)).setMessage(message)
+                        .setNeutralButton(s(R.string.keep_alive_action),(a,b) -> SetupAccess.requestBatteryOptimization(this))
                         .setPositiveButton(s(R.string.access_settings),(a,b) -> SetupAccess.settings(this)).setNegativeButton(s(R.string.back),null).show();
                 }
             }).show();

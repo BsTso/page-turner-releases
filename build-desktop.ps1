@@ -11,8 +11,8 @@ try {
     if($LASTEXITCODE -ne 0) { throw 'Desktop rule checks failed' }
     & $NodePath tests/desktop-background.cjs
     if($LASTEXITCODE -ne 0) { throw 'Desktop session checks failed' }
-    $manifest=Get-Content desktop/manifest.json -Raw | ConvertFrom-Json
-    [xml]$android=Get-Content app/src/main/AndroidManifest.xml -Raw
+    $manifest=Get-Content desktop/manifest.json -Raw -Encoding UTF8 | ConvertFrom-Json
+    [xml]$android=Get-Content app/src/main/AndroidManifest.xml -Raw -Encoding UTF8
     $version=$android.manifest.GetAttribute('versionName','http://schemas.android.com/apk/res/android')
     $expected=if(($version -split '\.').Count -eq 2) { "$version.0" } else { $version }
     if($manifest.version -ne $expected) { throw 'Android and extension versions differ' }

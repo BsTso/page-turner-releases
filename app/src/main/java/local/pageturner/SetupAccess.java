@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.content.*;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.Toast;
@@ -58,6 +59,18 @@ final class SetupAccess {
         hide();
         if(!launch(activity,new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+activity.getPackageName()))))
             Toast.makeText(activity,activity.getString(R.string.app_info_fallback,label(activity)),Toast.LENGTH_LONG).show();
+    }
+    static boolean isIgnoringBatteryOptimizations(Context context) {
+        try {
+            PowerManager pm=(PowerManager)context.getSystemService(Context.POWER_SERVICE);
+            return pm!=null && pm.isIgnoringBatteryOptimizations(context.getPackageName());
+        } catch(RuntimeException e) { return false; }
+    }
+    static void requestBatteryOptimization(Activity activity) {
+        hide();
+        Intent direct=new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,Uri.parse("package:"+activity.getPackageName()));
+        if(!launch(activity,direct) && !launch(activity,new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)))
+            appInfo(activity);
     }
     private static boolean launch(Activity activity,Intent intent) {
         try { activity.startActivity(intent); return true; }

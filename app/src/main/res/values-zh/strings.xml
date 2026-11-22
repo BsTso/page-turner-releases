@@ -2,6 +2,13 @@
 <resources>
     <string name="immersive">聚焦主体</string>
     <string name="immersive_explanation">运行时遮住漫画周围，暂停后恢复网页，无法识别主体时保留原样</string>
+    <string name="keep_alive_channel">前台运行状态</string>
+    <string name="keep_alive_notif">轻翻页运行中，保持后台连接</string>
+    <string name="keep_alive_label">后台保活</string>
+    <string name="keep_alive_on">已忽略省电</string>
+    <string name="keep_alive_off">去设置</string>
+    <string name="keep_alive_action">允许后台运行</string>
+    <string name="keep_alive_explanation">减少系统杀后台导致无障碍服务断连或失效\n\n建议在手机中一并检查：\n1、电池：设为允许完全后台行为 / 不优化\n2、权限：开启自启动，关闭未使用时移除权限\n3、最近任务：下拉锁定轻翻页</string>
     <string name="rest_interval">停顿间隔</string>
     <string name="slow_scroll">慢滑</string>
     <string name="scroll_page">一次滑到底</string>

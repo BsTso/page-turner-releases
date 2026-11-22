@@ -20,11 +20,12 @@ public final class ProgressWatch {
     public int observe(String url,String content,String view,int bottom,boolean bodyVisible,boolean loading,long now) {
         if(!active || result!=WAIT) return result;
         boolean reset=beforeBottom==ReadingRules.BOTTOM && bottom==ReadingRules.MORE;
+        boolean urlChanged=beforeUrl!=null && url!=null && !beforeUrl.equals(url);
         boolean viewChanged=beforeView!=null && view!=null && !beforeView.equals(view);
         boolean changed=ReadingRules.changed(beforeUrl,url,beforeContent,content) || reset && viewChanged || resetObserved;
         // A browser can update the address/title while still showing the previous page's bottom.
-        // Its forward-scroll action may also remain advertised at the bottom.
-        boolean ready=bodyVisible && !loading && (!requireReset || (viewChanged || resetObserved) && (bottom!=ReadingRules.BOTTOM || resetObserved));
+        // Its forward-scroll action may also remain advertised at the bottom, and a short next page can also report BOTTOM.
+        boolean ready=bodyVisible && !loading && (!requireReset || (viewChanged || resetObserved) && (bottom!=ReadingRules.BOTTOM || resetObserved || urlChanged && viewChanged));
         if(changed && ready) {
             if(candidate && equal(candidateUrl,url) && equal(candidateContent,content) && equal(candidateView,view) && candidateBottom==bottom) {
                 if(now-candidateAt>=1500 && now-started>=2000) return result=CHANGED;

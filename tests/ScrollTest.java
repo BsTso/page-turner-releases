@@ -14,8 +14,10 @@ public class ScrollTest {
         check(watch.finish("web","end",ReadingRules.MORE)==ReadingRules.BOTTOM,"real bottom wins over stale forward capability");
         watch.clear(); watch.begin("web","end");
         check(watch.finish("web","end",ReadingRules.MORE)==ReadingRules.MORE,"one unchanged swipe is not enough");
+        check(watch.stillCount()==1,"still count tracks stationary probe swipe");
         watch.begin("web","end");
         check(watch.finish("web","end",ReadingRules.MORE)==ReadingRules.BOTTOM,"two stationary swipes confirm bottom even with forward action");
+        check(watch.stillCount()==2,"still count reaches confirmation threshold");
         watch.clear(); watch.begin("web",null);
         check(watch.finish("web",null,ReadingRules.MORE)==ReadingRules.UNKNOWN,"unreadable canvas is not evidence of bottom");
         watch.begin("web","one"); watch.metric("web",300,2000); watch.finish("web","two",ReadingRules.MORE);

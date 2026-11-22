@@ -2,6 +2,13 @@
 <resources>
     <string name="immersive">Focus on the image</string>
     <string name="immersive_explanation">Cover the area around the main image while running and restore the page on pause, leave it unchanged if no image is detected</string>
+    <string name="keep_alive_channel">Active reading status</string>
+    <string name="keep_alive_notif">PageTurner is active to keep accessibility connected</string>
+    <string name="keep_alive_label">Background keep-alive</string>
+    <string name="keep_alive_on">Unrestricted</string>
+    <string name="keep_alive_off">Set up</string>
+    <string name="keep_alive_action">Allow background</string>
+    <string name="keep_alive_explanation">Helps prevent the system from killing the accessibility service while idle\n\nRecommended system settings:\n1. Battery: allow unrestricted background activity\n2. App info: allow auto-start and disable unused permission removal\n3. Recents: lock PageTurner in the task switcher</string>
     <string name="rest_interval">Pause between actions</string>
     <string name="slow_scroll">Slow scroll</string>
     <string name="scroll_page">All the way down</string>

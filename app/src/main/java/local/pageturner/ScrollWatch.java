@@ -35,4 +35,5 @@ public final class ScrollWatch {
     }
     public int position() { return y; }
     public int maximum() { return maximum; }
+    public int stillCount() { return still; }
 }

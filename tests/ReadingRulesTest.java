@@ -127,6 +127,11 @@ public class ReadingRulesTest {
         check(watch.observe("same","same","bottom",ReadingRules.MORE,true,false,101000)==ProgressWatch.WAIT,"late resume gets a fresh observation window without a new click");
         watch.observe("manual-next","new","top",ReadingRules.UNKNOWN,true,false,102000);
         check(watch.observe("manual-next","new","top",ReadingRules.UNKNOWN,true,false,103500)==ProgressWatch.CHANGED,"manual turn after timeout can resolve original pending state");
+
+        // A short single-screen next page may still report BOTTOM even after URL and image bounds changed.
+        watch.begin("url-1","old","old-bottom",ReadingRules.BOTTOM,true,0,10000);
+        watch.observe("url-2","new","short-page-view",ReadingRules.BOTTOM,true,false,1000);
+        check(watch.observe("url-2","new","short-page-view",ReadingRules.BOTTOM,true,false,2500)==ProgressWatch.CHANGED,"short next page with changed URL and view can confirm");
         System.out.println("ReadingRulesTest: "+checks+" checks passed");
     }
 }

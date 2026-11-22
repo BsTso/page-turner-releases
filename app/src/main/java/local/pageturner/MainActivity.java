@@ -88,6 +88,10 @@ public class MainActivity extends LocalizedActivity {
         gap(12); TextView footer=Ui.text(this,s(R.string.footer),11,Ui.MUTED); footer.setGravity(Gravity.CENTER); body.addView(footer);
     }
     private int mode() { return Math.max(0,Math.min(3,prefs.getInt("mode",prefs.getBoolean("smart",false)?3:0))); }
+    private String appVersion() {
+        try { String v=getPackageManager().getPackageInfo(getPackageName(),0).versionName; return v==null?"1.4.4":v; }
+        catch(Exception e) { return "1.4.4"; }
+    }
     private String seconds() { double s=prefs.getLong("interval",10000)/1000.0; return s==(long)s?""+(long)s:""+s; }
     private void changed() { if(TurnService.instance!=null) TurnService.instance.pause(s(R.string.settings_updated)); render(); }
     private void editInterval() {
@@ -125,10 +129,13 @@ public class MainActivity extends LocalizedActivity {
         LinearLayout.LayoutParams languageRow=new LinearLayout.LayoutParams(-1,d(54)); languageRow.topMargin=d(10); box.addView(language,languageRow);
         View focus=settingRow(s(R.string.immersive),prefs.getBoolean("immersive",false)?s(R.string.on):s(R.string.off));
         LinearLayout.LayoutParams focusRow=new LinearLayout.LayoutParams(-1,d(54)); focusRow.topMargin=d(10); box.addView(focus,focusRow);
+        boolean batteryOk=SetupAccess.isIgnoringBatteryOptimizations(this);
+        View keepAlive=settingRow(s(R.string.keep_alive_label),s(batteryOk?R.string.keep_alive_on:R.string.keep_alive_off));
+        LinearLayout.LayoutParams keepAliveRow=new LinearLayout.LayoutParams(-1,d(54)); keepAliveRow.topMargin=d(10); box.addView(keepAlive,keepAliveRow);
         LinearLayout links=new LinearLayout(this); LinearLayout.LayoutParams linksLp=new LinearLayout.LayoutParams(-1,d(54)); linksLp.topMargin=d(18); box.addView(links,linksLp);
         TextView help=Ui.action(this,s(R.string.help),Ui.MUTED,0x00000000),update=Ui.action(this,s(R.string.check_updates),Ui.MUTED,0x00000000);
         links.addView(help,new LinearLayout.LayoutParams(0,-1,1)); links.addView(update,new LinearLayout.LayoutParams(0,-1,1));
-        TextView version=Ui.text(this,s(R.string.version_label,"1.4"),11,Ui.MUTED); version.setGravity(Gravity.CENTER); box.addView(version);
+        TextView version=Ui.text(this,s(R.string.version_label,appVersion()),11,Ui.MUTED); version.setGravity(Gravity.CENTER); box.addView(version);
         TextView heading=Ui.text(this,s(R.string.settings),20,Ui.INK); Ui.bold(heading); heading.setPadding(d(24),d(24),d(24),d(8));
         ScrollView settingsScroll=new ScrollView(this); settingsScroll.addView(box);
         AlertDialog dialog=new AlertDialog.Builder(this).setCustomTitle(heading).setView(settingsScroll).create();
@@ -136,6 +143,7 @@ public class MainActivity extends LocalizedActivity {
         visible.setOnClickListener(v -> { dialog.dismiss(); opacity(); });
         language.setOnClickListener(v -> { dialog.dismiss(); chooseLanguage(); });
         focus.setOnClickListener(v -> { dialog.dismiss(); new AlertDialog.Builder(this).setTitle(s(R.string.immersive)).setMessage(s(R.string.immersive_explanation)).setNegativeButton(s(R.string.off),(a,b) -> { prefs.edit().putBoolean("immersive",false).apply(); changed(); }).setPositiveButton(s(R.string.on),(a,b) -> { prefs.edit().putBoolean("immersive",true).apply(); changed(); }).show(); });
+        keepAlive.setOnClickListener(v -> { dialog.dismiss(); new AlertDialog.Builder(this).setTitle(s(R.string.keep_alive_label)).setMessage(s(R.string.keep_alive_explanation)).setNeutralButton(s(R.string.open_app_info),(a,b) -> SetupAccess.appInfo(this)).setNegativeButton(s(R.string.close),null).setPositiveButton(s(R.string.keep_alive_action),(a,b) -> SetupAccess.requestBatteryOptimization(this)).show(); });
         check.setOnClickListener(v -> { dialog.dismiss(); new AlertDialog.Builder(this).setTitle(s(R.string.check_progress)).setMessage(s(R.string.progress_explanation)).setNegativeButton(s(R.string.disable_check),(a,b) -> { prefs.edit().putBoolean("check_progress",false).apply(); changed(); }).setPositiveButton(s(R.string.enable_check),(a,b) -> { prefs.edit().putBoolean("check_progress",true).apply(); changed(); }).show(); });
         help.setOnClickListener(v -> { dialog.dismiss(); help(); });
         update.setOnClickListener(v -> { dialog.dismiss(); if(updateChecker!=null) updateChecker.cancel(); updateChecker=new UpdateChecker(this); updateChecker.start(); });

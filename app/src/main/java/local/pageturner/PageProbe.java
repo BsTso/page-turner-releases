@@ -5,35 +5,60 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 
 /** Reads existing accessibility data only; never takes screenshots or retains page text. */
 final class PageProbe {
     static final class Snapshot {
         String content, url, scrollKey, viewport;
-        Rect scrollBounds;
+        Rect scrollBounds, imageBounds;
         int bottom=ReadingRules.UNKNOWN;
         boolean bodyVisible,loading;
     }
     static String nodeKey(AccessibilityNodeInfo node) {
-        // Node identity survives browser toolbar resizing; bounds do not.
-        return node.getWindowId()+":"+node.getViewIdResourceName()+":"+node.getClassName()+":"+node.hashCode();
+        // Stable across browser toolbar resizing, DOM reflows and scroll event sources.
+        return node.getWindowId()+":"+node.getViewIdResourceName()+":"+node.getClassName();
     }
     static Rect imageBounds(AccessibilityNodeInfo root,int width,int height) {
+        return imageBounds(root,width,height,null);
+    }
+    static Rect imageBounds(AccessibilityNodeInfo root,int width,int height,Rect clamp) {
         if(root==null) return null;
+        Rect clip=clamp==null?new Rect(0,0,width,height):new Rect(clamp);
+        if(!clip.intersect(0,0,width,height) || clip.isEmpty()) clip.set(0,0,width,height);
+        ArrayList<Rect> candidates=new ArrayList<>();
         Rect best=null; long largest=0; int visited=0;
         ArrayDeque<AccessibilityNodeInfo> queue=new ArrayDeque<>(); queue.add(AccessibilityNodeInfo.obtain(root));
-        while(!queue.isEmpty() && visited++<700) {
+        while(!queue.isEmpty() && visited++<1200) {
             AccessibilityNodeInfo node=queue.remove(); String cls=String.valueOf(node.getClassName());
             if(node.isVisibleToUser() && !node.isPassword() && cls.contains("Image")) {
                 Rect r=new Rect(); node.getBoundsInScreen(r);
-                if(r.intersect(0,0,width,height) && r.width()>=width*.35f && r.height()>=height*.2f) {
+                if(r.intersect(clip) && r.width()>=width*.35f && r.height()>=height*.2f) {
                     long area=r.width()*1L*r.height();
-                    if(area>largest && area>width*1L*height*.12f) { best=new Rect(r); largest=area; }
+                    if(area>width*1L*height*.12f) {
+                        candidates.add(new Rect(r));
+                        if(area>largest) { best=new Rect(r); largest=area; }
+                    }
                 }
             }
-            addChildren(node,queue,visited); node.recycle();
+            addChildren(node,queue,visited,1300); node.recycle();
         }
         while(!queue.isEmpty()) queue.remove().recycle();
+        if(best==null) return null;
+        // Include vertically adjacent same-column comic images so multi-image pages do not mask the next panel.
+        int alignTol=Math.max(8,Math.round(width*.08f)), gapTol=Math.max(12,Math.round(height*.06f));
+        boolean merged=true;
+        while(merged) {
+            merged=false;
+            for(int i=candidates.size()-1;i>=0;i--) {
+                Rect r=candidates.get(i);
+                if(Math.abs(r.left-best.left)<=alignTol && Math.abs(r.right-best.right)<=alignTol
+                    && r.top<=best.bottom+gapTol && r.bottom>=best.top-gapTol) {
+                    if(!best.contains(r)) { best.union(r); merged=true; }
+                    candidates.remove(i);
+                }
+            }
+        }
         return best;
     }
     static Snapshot capture(AccessibilityNodeInfo root,int width,int height) {
@@ -48,7 +73,7 @@ final class PageProbe {
                 String id=node.getViewIdResourceName(),cls=String.valueOf(node.getClassName());
                 if(cls.contains("ProgressBar") && area>0) result.loading=true;
                 // Only browser address-bar IDs; never inspect general editable fields.
-                if(id!=null && (id.endsWith(":id/url_bar") || id.endsWith(":id/url") || id.endsWith(":id/address_bar"))) {
+                if(isUrlBarId(id)) {
                     CharSequence value=node.getText();
                     if(value!=null && !value.toString().contains(" ") && (value.toString().contains(".") || value.toString().startsWith("http"))) result.url=hash(value.toString());
                 }
@@ -61,9 +86,9 @@ final class PageProbe {
                     if(scrollRoot!=null) scrollRoot.recycle(); scrollRoot=AccessibilityNodeInfo.obtain(node); largestScroll=area;
                 }
             }
-            addChildren(node,queue,visited); node.recycle();
+            addChildren(node,queue,visited,1600); node.recycle();
         }
-        boolean truncated=!queue.isEmpty(); while(!queue.isEmpty()) queue.remove().recycle();
+        while(!queue.isEmpty()) queue.remove().recycle();
         if(scrollRoot!=null) {
             result.scrollKey=nodeKey(scrollRoot);
             result.scrollBounds=new Rect(); scrollRoot.getBoundsInScreen(result.scrollBounds);
@@ -75,28 +100,36 @@ final class PageProbe {
             scrollRoot.recycle();
         }
         if(contentRoot==null) contentRoot=AccessibilityNodeInfo.obtain(root);
-        if(!truncated) {
-            result.content=fingerprint(contentRoot);
-            result.bodyVisible=result.content!=null || imageBounds(contentRoot,width,height)!=null;
-        }
+        result.content=fingerprint(contentRoot);
+        result.imageBounds=imageBounds(contentRoot,width,height,result.scrollBounds);
+        result.bodyVisible=result.content!=null || result.imageBounds!=null;
         contentRoot.recycle(); return result;
     }
+    private static boolean isUrlBarId(String id) {
+        return id!=null && (id.endsWith(":id/url_bar") || id.endsWith(":id/url") || id.endsWith(":id/address_bar")
+            || id.endsWith(":id/mozac_browser_toolbar_url_view") || id.endsWith(":id/location_bar_edit_text")
+            || id.endsWith(":id/url_text") || id.endsWith(":id/url_input"));
+    }
     private static String viewportFingerprint(AccessibilityNodeInfo root,int width,int height) {
-        StringBuilder geometry=new StringBuilder(); int visited=0,landmarks=0;
-        ArrayDeque<AccessibilityNodeInfo> queue=new ArrayDeque<>(); addChildren(root,queue,0);
+        StringBuilder geometry=new StringBuilder(); int visited=0,landmarks=0; boolean hasMainImage=false;
+        ArrayDeque<AccessibilityNodeInfo> queue=new ArrayDeque<>(); addChildren(root,queue,0,1600);
         while(!queue.isEmpty() && visited++<1500) {
             AccessibilityNodeInfo node=queue.remove(); Rect r=new Rect(); node.getBoundsInScreen(r);
             String cls=String.valueOf(node.getClassName());
-            // Do not mistake an unlabelled full-screen canvas or a fixed container for movement evidence.
+            boolean isImage=cls.contains("Image");
+            boolean intersects=r.right>0 && r.left<width && r.bottom>0 && r.top<height;
+            // Include tall images whose top/bottom extend beyond the screen; their raw bounds still move on scroll.
             boolean edge=r.top>0 && r.top<height || r.bottom>0 && r.bottom<height;
             if(node.isVisibleToUser() && !node.isPassword() && !node.isEditable() && !cls.contains("ProgressBar")
-                && r.right>0 && r.left<width && edge && (node.getChildCount()==0 || cls.contains("Image"))) {
-                geometry.append(node.hashCode()).append(':').append(r.left/3).append(':').append(r.top/3).append(':').append(r.right/3).append(':').append(r.bottom/3).append(';'); landmarks++;
+                && intersects && r.width()>=24 && r.height()>=24 && (isImage || edge && node.getChildCount()==0)) {
+                geometry.append(cls).append(':').append(r.left/4).append(':').append(r.top/4).append(':').append(r.right/4).append(':').append(r.bottom/4).append(';');
+                landmarks++;
+                if(isImage && r.width()>=width*.35f && r.height()>=height*.2f) hasMainImage=true;
             }
-            addChildren(node,queue,visited); node.recycle();
+            addChildren(node,queue,visited,1600); node.recycle();
         }
         boolean truncated=!queue.isEmpty(); while(!queue.isEmpty()) queue.remove().recycle();
-        return !truncated && landmarks>=2?hash(geometry.toString()):null;
+        return (hasMainImage && landmarks>=1) || (!truncated && landmarks>=2) ? hash(geometry.toString()) : null;
     }
     private static String fingerprint(AccessibilityNodeInfo root) {
         StringBuilder text=new StringBuilder(); int visited=0,words=0;
@@ -111,14 +144,14 @@ final class PageProbe {
                     if(description!=null && description.length()>0) { append(text,description); words++; }
                 }
             }
-            addChildren(node,queue,visited); node.recycle();
+            addChildren(node,queue,visited,1600); node.recycle();
         }
         boolean truncated=!queue.isEmpty(); while(!queue.isEmpty()) queue.remove().recycle();
         return !truncated && words>0 ? hash(text.toString()) : null;
     }
     private static void append(StringBuilder out,CharSequence value) { String s=value.toString(); if(s.length()>2000) s=s.substring(0,2000); out.append(s.length()).append(':').append(s).append('\n'); }
-    private static void addChildren(AccessibilityNodeInfo node,ArrayDeque<AccessibilityNodeInfo> queue,int visited) {
-        for(int i=0;i<node.getChildCount() && queue.size()+visited<1600;i++) { AccessibilityNodeInfo child=node.getChild(i); if(child!=null) queue.add(child); }
+    private static void addChildren(AccessibilityNodeInfo node,ArrayDeque<AccessibilityNodeInfo> queue,int visited,int cap) {
+        for(int i=0;i<node.getChildCount() && queue.size()+visited<cap;i++) { AccessibilityNodeInfo child=node.getChild(i); if(child!=null) queue.add(child); }
     }
     private static boolean has(AccessibilityNodeInfo node,int action) { for(AccessibilityNodeInfo.AccessibilityAction a:node.getActionList()) if(a.getId()==action) return true; return false; }
     private static String hash(String value) {
